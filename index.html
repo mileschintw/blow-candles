@@ -1115,8 +1115,9 @@ function updateCalib(dt) {
 }
 function finishCalib() {
   const c = det.calib; det.calib = null;
-  const qm = pct(c.quiet, 0.5), q95 = pct(c.quiet, 0.95), b = pct(c.blow, 0.6);
-  const noise = Math.max(1, q95 - qm), blowEx = b - qm;
+  // robust to starting the blow a little early / stopping early: 80th pct of quiet, 60th pct of blow
+  const qm = pct(c.quiet, 0.5), q80 = pct(c.quiet, 0.8), b = pct(c.blow, 0.6);
+  const noise = clamp(q80 - qm + 2, 2, 15), blowEx = b - qm;
   if (!c.quiet.length || !c.blow.length || !isFinite(blowEx) || blowEx < noise + 6) {
     setCal('😕', '沒有聽到明顯的吹氣聲', '請把嘴靠近手機底部的麥克風（約 5–15 公分），再試一次。', 0, '再試一次', '關閉');
     return;
