@@ -448,6 +448,7 @@ function analyseMic(dt) {
   if (!analyser || !micOk) { det.eff = 0; det.excess = 0; return; }
   analyser.getFloatFrequencyData(fbuf);
   const low = bandDb(40, 1000);
+  if (low < -150) { det.eff = 0; det.excess = 0; return; }   // stream not running yet (digital silence)
   det.lowDb = low;
   if (det.floor == null || !isFinite(det.floor)) det.floor = low;
   const v = periodicity();
@@ -458,8 +459,12 @@ function analyseMic(dt) {
   const veto = clamp((det.voice - 0.42) / 0.2, 0, 1);
   det.eff = selfSound ? 0 : det.excess * (1 - 0.9 * veto);
   // noise floor: falls quickly, creeps up slowly, frozen during loud events and calibration
+  // (a loud sound that lasts longer than any blow, e.g. a fan switching on, becomes the new floor)
+  det.loudT = det.excess >= thDb * 0.6 ? (det.loudT || 0) + dt : 0;
   if (low < det.floor) det.floor += (low - det.floor) * Math.min(1, dt * 4);
-  else if (!det.calib && !selfSound && det.excess < thDb * 0.6) det.floor += (low - det.floor) * Math.min(1, dt * 0.15);
+  else if (det.calib || selfSound) { /* frozen */ }
+  else if (det.excess < thDb * 0.6) det.floor += (low - det.floor) * Math.min(1, dt * 0.15);
+  else if (det.loudT > 5) det.floor += (low - det.floor) * Math.min(1, dt * 0.5);
 }
 
 /* ---------------- scene state ---------------- */
