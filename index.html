@@ -601,7 +601,7 @@ function update(dt) {
 
   const over = raw - th;
   if (over >= 0) st.blowT += dt; else st.blowT = Math.max(0, st.blowT - dt * 3);
-  const blowing = st.blowT >= 0.12;
+  const blowing = st.blowT >= 0.18;
   if (blowing && !st.everBlown && litCount()) { st.everBlown = true; }
 
   let lit = 0;
