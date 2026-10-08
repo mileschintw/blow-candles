@@ -17,6 +17,7 @@
     --accent:#ffb347; --accent2:#ff6f91; --ok:#5ee6a8;
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  [hidden]{display:none!important}
   html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);
     font-family:-apple-system,BlinkMacSystemFont,"PingFang TC","Noto Sans TC","Microsoft JhengHei",system-ui,sans-serif;
     overflow:hidden;overscroll-behavior:none;touch-action:manipulation;-webkit-user-select:none;user-select:none}
@@ -49,6 +50,20 @@
   .meter .mark{position:absolute;top:-6px;bottom:-6px;width:3px;margin-left:-1.5px;background:#fff;border-radius:2px;
     box-shadow:0 0 6px rgba(255,255,255,.85)}
   .meter.big{height:16px;margin:10px 0 4px}
+  .meter .amb{position:absolute;top:-3px;bottom:-3px;width:2px;margin-left:-1px;background:rgba(255,255,255,.35);border-radius:2px;
+    transition:left .3s}
+  .calib-btn{appearance:none;width:100%;height:48px;margin-top:12px;border-radius:14px;border:1px solid rgba(255,195,107,.55);
+    background:rgba(255,195,107,.12);color:var(--fg);font-size:16px;font-weight:600}
+  .calib{z-index:30}
+  .calib .card{background:rgba(26,15,34,.97);border:1px solid var(--line);border-radius:22px;padding:26px 22px 20px}
+  .calib .logo{font-size:52px;animation:none}
+  .calib h2{margin:6px 0 8px;font-size:22px;letter-spacing:.08em}
+  .calib p{min-height:3.4em}
+  .prog{height:6px;border-radius:9px;background:rgba(255,255,255,.12);overflow:hidden;margin-bottom:14px}
+  .prog span{display:block;height:100%;width:0;background:linear-gradient(90deg,#ffc36b,#ff7b8e)}
+  .calib .ghost{margin-top:10px}
+  .dbg{position:fixed;left:8px;top:calc(env(safe-area-inset-top) + 100px);z-index:7;font:11px/1.4 ui-monospace,Menlo,Consolas,monospace;
+    color:#bfffd6;background:rgba(0,0,0,.55);padding:6px 8px;border-radius:8px;pointer-events:none;white-space:pre}
   .meter.big .mark{top:-7px;bottom:-7px}
 
   /* start overlay */
@@ -172,10 +187,11 @@
   </div>
   <div class="field">
     <label>吹熄門檻 <b id="thVal">50</b></label>
-    <div class="meter big"><span class="fill" id="bigFill"></span><span class="mark" id="bigMark"></span></div>
+    <div class="meter big"><span class="fill" id="bigFill"></span><span class="amb" id="bigAmb"></span><span class="mark" id="bigMark"></span></div>
     <input type="range" id="thSlider" min="5" max="95" step="1" aria-label="吹熄門檻">
     <div class="scale"><span>← 更敏感</span><span>需要更用力 →</span></div>
-    <p class="tip">對著手機底部的麥克風吹氣，彩色條超過白線並持續一下子，蠟燭就會熄滅。環境很吵或說話就會熄掉時，請把白線往右調。</p>
+    <p class="tip">彩色條是「比周圍環境大聲多少」。吹氣讓它超過白線，蠟燭就會熄滅；淡灰線是最近環境噪音的高點，白線要放在它右邊。說話聲會被自動過濾。</p>
+    <button id="btnCalib" class="calib-btn">🎯 自動校準（建議先做一次）</button>
   </div>
   <div class="field">
     <label>吹熄後的祝福文字</label>
@@ -185,6 +201,18 @@
   <div class="field row"><label for="songToggle">全部吹熄後播放生日快樂歌</label><input type="checkbox" id="songToggle" class="switch"></div>
   <button id="btnDone" class="primary">完成</button>
 </section>
+
+<div id="calib" class="overlay calib" hidden>
+  <div class="card">
+    <div class="logo" id="calIcon">🤫</div>
+    <h2 id="calTitle">自動校準</h2>
+    <p id="calText"></p>
+    <div class="prog"><span id="calProg"></span></div>
+    <div class="meter big"><span class="fill" id="calFill"></span></div>
+    <button id="calBtn" class="primary" hidden>再試一次</button>
+    <button id="calBtn2" class="ghost">取消</button>
+  </div>
+</div>
 
 <div id="start" class="overlay">
   <div class="card">
@@ -206,10 +234,17 @@ const lerp = (a, b, t) => a + (b - a) * t;
 const rand = (a, b) => a + Math.random() * (b - a);
 
 /* ---------------- settings ---------------- */
-const KEY = 'blow-candle-v1';
-const DEFAULTS = { mode: 'single', count: 5, number: '18', threshold: 50, msg: '生日快樂！', sfx: true, song: true };
+const KEY = 'blow-candle-v2';
+const DEFAULTS = { mode: 'single', count: 5, number: '18', threshold: 40, msg: '生日快樂！', sfx: true, song: true, calibrated: false };
 const S = Object.assign({}, DEFAULTS);
-try { const raw = localStorage.getItem(KEY); if (raw) Object.assign(S, JSON.parse(raw)); } catch (e) {}
+try {
+  const raw = localStorage.getItem(KEY);
+  if (raw) Object.assign(S, JSON.parse(raw));
+  else {   // v1 used a different threshold scale: keep everything except the threshold
+    const old = JSON.parse(localStorage.getItem('blow-candle-v1') || 'null');
+    if (old) { delete old.threshold; Object.assign(S, old); }
+  }
+} catch (e) {}
 // URL overrides, e.g. ?num=25 or ?count=3
 try {
   const q = new URLSearchParams(location.search);
@@ -221,9 +256,9 @@ function sanitize() {
   S.mode = S.mode === 'number' ? 'number' : 'single';
   S.count = clamp(Math.round(+S.count) || 1, 1, 40);
   S.number = String(S.number || '').replace(/\D/g, '').slice(0, 4) || '1';
-  S.threshold = clamp(Math.round(+S.threshold) || 50, 5, 95);
+  S.threshold = clamp(Math.round(+S.threshold) || 40, 5, 95);
   S.msg = String(S.msg == null ? DEFAULTS.msg : S.msg).slice(0, 24);
-  S.sfx = !!S.sfx; S.song = !!S.song;
+  S.sfx = !!S.sfx; S.song = !!S.song; S.calibrated = !!S.calibrated;
 }
 sanitize();
 function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} }
@@ -967,14 +1002,28 @@ function updateMeters() {
   const v = clamp(st.disp, 0, 100), hot = st.disp >= S.threshold;
   pillFill.style.width = v + '%'; bigFill.style.width = v + '%';
   pillFill.classList.toggle('hot', hot); bigFill.classList.toggle('hot', hot);
+  bigAmb.style.left = clamp(det.ambPeak, 0, 100) + '%';
+  if (det.calib) $('calFill').style.width = clamp(det.excess * DB_SCALE, 0, 100) + '%';
+  if (dbgEl) dbgEl.textContent =
+    `floor ${det.floor == null ? '-' : det.floor.toFixed(1)} dB\nband  ${det.lowDb.toFixed(1)} dB\nabove ${det.excess.toFixed(1)} dB\n` +
+    `voice ${det.voice.toFixed(2)}\neff   ${det.eff.toFixed(1)} dB\nline  ${(S.threshold / DB_SCALE).toFixed(1)} dB\ndose  ${det.dose.toFixed(2)}` +
+    (AC && AC.currentTime < det.quietUntil ? '\n(self sound)' : '');
 }
+const bigAmb = $('bigAmb');
+let dbgEl = null;
+try {
+  if (new URLSearchParams(location.search).has('debug')) {
+    dbgEl = document.createElement('div'); dbgEl.className = 'dbg'; document.body.appendChild(dbgEl);
+  }
+} catch (e) {}
 function updateMarks() {
   pillMark.style.left = S.threshold + '%'; bigMark.style.left = S.threshold + '%';
   $('thVal').textContent = S.threshold; $('thSlider').value = S.threshold;
 }
 function updateMicUI() {
   $('micIc').textContent = micOk ? '🎤' : '👆';
-  $('hint').textContent = micOk ? '對著麥克風吹氣 🌬️' : '點一下蠟燭就能吹熄 👆';
+  $('hint').textContent = !micOk ? '點一下蠟燭就能吹熄 👆'
+    : S.calibrated ? '對著麥克風吹氣 🌬️' : '對著麥克風吹氣 🌬️　吹不熄？到 ⚙️ 做自動校準';
 }
 function syncForm() {
   document.querySelectorAll('#modeSeg button').forEach(b => b.classList.toggle('on', b.dataset.mode === S.mode));
@@ -1024,6 +1073,57 @@ $('thSlider').addEventListener('input', e => { S.threshold = +e.target.value; up
 $('msgInput').addEventListener('input', e => { S.msg = e.target.value.slice(0, 24); save(); if (!celebrateEl.classList.contains('hidden')) $('celebrateMsg').textContent = S.msg || '🎉'; });
 $('sfxToggle').addEventListener('change', e => { S.sfx = e.target.checked; save(); });
 $('songToggle').addEventListener('change', e => { S.song = e.target.checked; save(); if (!S.song) stopSong(); });
+
+// ---- auto calibration: 2 s of room noise, then 3 s of blowing ----
+const calEl = $('calib');
+function setCal(icon, title, text, prog, btn, btn2) {
+  $('calIcon').textContent = icon; $('calTitle').textContent = title; $('calText').textContent = text;
+  $('calProg').style.width = (prog * 100) + '%';
+  $('calBtn').hidden = !btn; if (btn) $('calBtn').textContent = btn;
+  $('calBtn2').textContent = btn2 || '取消';
+}
+function startCalib() {
+  calEl.hidden = false;
+  if (!micOk) { setCal('🎤', '需要麥克風', '目前沒有開啟麥克風，無法校準。請重新整理頁面，按「開始」並允許麥克風。', 0, null, '關閉'); return; }
+  ensureAudio();
+  det.calib = { phase: 'quiet', t: 0, quiet: [], blow: [] };
+  setCal('🤫', '先保持安靜', '請安靜 2 秒，讓我聽聽周圍環境的聲音…', 0, null, '取消');
+}
+function pct(arr, q) { const a = arr.slice().sort((x, y) => x - y); return a[Math.min(a.length - 1, Math.floor(q * (a.length - 1)))]; }
+function updateCalib(dt) {
+  const c = det.calib; c.t += dt;
+  if (c.phase === 'quiet') {
+    c.quiet.push(det.lowDb);
+    $('calProg').style.width = Math.min(100, c.t / 2 * 100) + '%';
+    if (c.t >= 2) {
+      c.phase = 'blow'; c.t = 0;
+      det.floor = pct(c.quiet, 0.5);
+      setCal('🌬️', '現在請吹氣', '像吹蠟燭一樣，對著手機底部的麥克風持續吹 3 秒。', 0, null, '取消');
+    }
+  } else {
+    if (c.t > 0.3) c.blow.push(det.lowDb);
+    $('calProg').style.width = Math.min(100, c.t / 3 * 100) + '%';
+    if (c.t >= 3) finishCalib();
+  }
+}
+function finishCalib() {
+  const c = det.calib; det.calib = null;
+  const qm = pct(c.quiet, 0.5), q95 = pct(c.quiet, 0.95), b = pct(c.blow, 0.6);
+  const noise = Math.max(1, q95 - qm), blowEx = b - qm;
+  if (!c.quiet.length || !c.blow.length || !isFinite(blowEx) || blowEx < noise + 6) {
+    setCal('😕', '沒有聽到明顯的吹氣聲', '請把嘴靠近手機底部的麥克風（約 5–15 公分），再試一次。', 0, '再試一次', '關閉');
+    return;
+  }
+  det.floor = qm; det.dose = 0; det.ambPeak = 0;
+  const thDb = clamp(noise + 0.42 * (blowEx - noise), 4, 36);
+  S.threshold = clamp(Math.round(thDb * DB_SCALE), 5, 95); S.calibrated = true;
+  save(); updateMarks(); updateMicUI();
+  setCal('✅', '校準完成', `你的吹氣比環境大聲約 ${Math.round(blowEx)} dB，門檻已設為 ${S.threshold}。之後用差不多的力道吹就能吹熄。`, 1, null, '好');
+}
+function closeCalib() { det.calib = null; calEl.hidden = true; }
+$('btnCalib').addEventListener('click', startCalib);
+$('calBtn').addEventListener('click', startCalib);
+$('calBtn2').addEventListener('click', closeCalib);
 
 // tap a candle: blow it out / relight it
 cv.addEventListener('pointerdown', e => {
@@ -1094,11 +1194,13 @@ window.candleDebug = {
   setLevel(v) { forcedLevel = v == null ? null : +v; },
   state() {
     return { lit: cands.filter(c => c.lit).length, pending: cands.filter(c => c.pending).length, total: cands.length,
-      level: Math.round(st.level), flat: +(st.flat || 0).toFixed(3), threshold: S.threshold, mic: micOk, celebrated: st.celebrated,
+      level: Math.round(st.level), threshold: S.threshold, calibrating: !!det.calib, calibrated: S.calibrated,
+      dbg: `ex${det.excess.toFixed(0)} v${det.voice.toFixed(2)} d${det.dose.toFixed(2)}`, mic: micOk, celebrated: st.celebrated,
       celebrateVisible: !celebrateEl.classList.contains('hidden'),
       boxes: cands.map(c => ({ x: Math.round(c.x), y: Math.round(c.y), wickX: Math.round(c.wickX), wickY: Math.round(c.wickY) })) };
   },
-  rawLevel() { const f = forcedLevel; forcedLevel = null; const v = readMicLevel(); forcedLevel = f; return v; }
+  calibrate: startCalib,
+  calText() { return calEl.hidden ? null : $('calTitle').textContent + ' | ' + $('calText').textContent; }
 };
 
 genStatic();
