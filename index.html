@@ -11,6 +11,7 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%95%AF%EF%B8%8F%3C/text%3E%3C/svg%3E">
 <style>
   :root{
+    color-scheme:dark;
     --bg:#0d0814; --fg:#fff7ec; --muted:rgba(255,240,225,.68);
     --glass:rgba(34,20,44,.58); --line:rgba(255,220,190,.18);
     --accent:#ffb347; --accent2:#ff6f91; --ok:#5ee6a8;
@@ -994,7 +995,11 @@ $('btnStart').addEventListener('click', async () => {
     console.warn('mic failed', err);
     let msg = '無法使用麥克風。';
     if (err && err.message === 'insecure') msg = '這個網址不是 HTTPS，瀏覽器不允許使用麥克風。請改用 https:// 網址開啟。';
-    else if (err && (err.name === 'NotAllowedError' || err.name === 'SecurityError')) msg = '麥克風權限被拒絕了。請到瀏覽器的網站設定允許麥克風後重新整理。';
+    else if (err && (err.name === 'NotAllowedError' || err.name === 'SecurityError')) {
+      let framed = false; try { framed = window.top !== window.self; } catch (e) { framed = true; }
+      msg = framed ? '這個頁面嵌在別的網站裡（例如 claude.ai），那裡不允許使用麥克風。要用吹氣，請在自己的 HTTPS 網址開啟這個檔案。'
+                   : '麥克風權限被拒絕了。請到瀏覽器的網站設定允許麥克風後重新整理。';
+    }
     else if (err && err.name === 'NotFoundError') msg = '找不到麥克風裝置。';
     $('startErr').textContent = msg + ' 你也可以先用「點蠟燭吹熄」模式。';
     $('btnStart').disabled = false; $('btnStart').textContent = '再試一次 🎤';
