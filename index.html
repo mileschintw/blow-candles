@@ -314,7 +314,7 @@ function stopSong() {
 }
 
 /* ---------------- audio: microphone ---------------- */
-let analyser = null, freq = null, micStream = null, micOk = false;
+let analyser = null, freq = null, fbuf = null, micStream = null, micOk = false;
 let forcedLevel = null; // debug hook
 async function startMic() {
   if (!window.isSecureContext || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
@@ -332,7 +332,7 @@ async function startMic() {
   src.connect(analyser);
   // keep the graph pulled on browsers that need a path to the destination
   const mute = AC.createGain(); mute.gain.value = 0; analyser.connect(mute); mute.connect(AC.destination);
-  freq = new Uint8Array(analyser.frequencyBinCount);
+  freq = new Uint8Array(analyser.frequencyBinCount); fbuf = new Float32Array(analyser.frequencyBinCount);
   micStream.getAudioTracks().forEach(tr => tr.addEventListener('ended', () => { micOk = false; updateMicUI(); }));
   micOk = true;
 }
@@ -349,7 +349,15 @@ function readMicLevel() {
   for (let i = lo1 + 1; i <= mi1; i++) mi += freq[i];
   lo /= (lo1 - lo0 + 1); mi /= (mi1 - lo1);
   const v = (lo * 0.75 + mi * 0.25) / 255; // 0..1
-  return clamp((v - 0.06) * 125, 0, 100);
+  // spectral flatness 80Hz–3kHz: wind noise is flat (~0.3+), voices are harmonic/peaky (~0.05)
+  analyser.getFloatFrequencyData(fbuf);
+  const f0 = Math.max(1, Math.round(80 / binHz)), f1 = Math.min(fbuf.length - 1, Math.round(3000 / binHz));
+  let lg = 0, ar = 0, n = 0;
+  for (let i = f0; i <= f1; i++) { const p = Math.pow(10, Math.max(fbuf[i], -140) / 10) + 1e-14; lg += Math.log(p); ar += p; n++; }
+  const flat = Math.exp(lg / n) / (ar / n);
+  st.flat = st.flat == null ? flat : st.flat + (flat - st.flat) * 0.3;
+  const noisy = clamp((st.flat - 0.06) / 0.16, 0.3, 1);
+  return clamp((v - 0.06) * 125 * noisy, 0, 100);
 }
 
 /* ---------------- scene state ---------------- */
@@ -1008,7 +1016,7 @@ window.candleDebug = {
   setLevel(v) { forcedLevel = v == null ? null : +v; },
   state() {
     return { lit: cands.filter(c => c.lit).length, pending: cands.filter(c => c.pending).length, total: cands.length,
-      level: Math.round(st.level), threshold: S.threshold, mic: micOk, celebrated: st.celebrated,
+      level: Math.round(st.level), flat: +(st.flat || 0).toFixed(3), threshold: S.threshold, mic: micOk, celebrated: st.celebrated,
       celebrateVisible: !celebrateEl.classList.contains('hidden'),
       boxes: cands.map(c => ({ x: Math.round(c.x), y: Math.round(c.y), wickX: Math.round(c.wickX), wickY: Math.round(c.wickY) })) };
   },
