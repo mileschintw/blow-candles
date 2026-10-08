@@ -406,7 +406,7 @@ function resize() {
 function layout() {
   const cw = Math.min(W * 0.84, 460, H * 0.6);
   G.cw = cw; G.cx = W / 2; G.rx = cw / 2; G.ry = cw * 0.17; G.ch = cw * 0.36;
-  G.bottom = Math.min(H * 0.8, H - 100);
+  G.bottom = Math.min(H * 0.74, H - 100);
   G.top = G.bottom - G.ch;
   placeCandles();
 }
@@ -423,7 +423,7 @@ function placeSticks() {
   let w = clamp(G.cw / (Math.sqrt(n) * 3.4 + 2.2), 6, G.cw * 0.07);
   let pts;
   for (let tries = 0; tries < 30; tries++) { pts = ringLayout(n, w); if (pts) break; w *= 0.9; }
-  const h = w * 3.4 + G.cw * 0.06;
+  const h = w * 3.6 + G.cw * 0.1;
   cands.forEach((c, k) => {
     const p = pts[k];
     c.x = p.x; c.y = p.y; c.w = w; c.h = h;
@@ -788,7 +788,7 @@ function drawCake(amb) {
   ctx.globalCompositeOperation = 'lighter';
   const lg = ctx.createRadialGradient(cx, top - ry, 0, cx, top, rx * 1.4);
   lg.addColorStop(0, `rgba(255,170,90,${0.3 * amb})`); lg.addColorStop(1, 'rgba(255,170,90,0)');
-  ctx.fillStyle = lg; ctx.fillRect(cx - rx * 1.5, top - ry * 3, rx * 3, ch + ry * 4);
+  ctx.fillStyle = lg; ctx.beginPath(); ctx.arc(cx, top - ry, rx * 1.4, 0, 7); ctx.fill();
   ctx.globalCompositeOperation = 'source-over';
   ctx.lineCap = 'butt';
 }
