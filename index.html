@@ -473,12 +473,12 @@ function placeDigits() {
   let sprites, total;
   for (let tries = 0; tries < 6; tries++) {
     sprites = cands.map(c => digitSprite(c.ch, Math.round(dh), c.color));
-    const gap = -dh * 0.02;
+    const gap = dh * 0.03;
     total = sprites.reduce((s, sp) => s + sp.w, 0) + gap * (d - 1);
     if (total <= G.cw * 0.96) break;
     dh *= G.cw * 0.94 / total;
   }
-  const gap = -dh * 0.02;
+  const gap = dh * 0.03;
   let x = G.cx - total / 2;
   cands.forEach((c, k) => {
     const sp = sprites[k];
@@ -676,7 +676,8 @@ function render() {
   // candles back to front
   for (const c of cands) {
     ctx.fillStyle = 'rgba(80,20,40,.25)';
-    ctx.beginPath(); ctx.ellipse(c.x + c.w * 0.25, c.y + 2, c.w * (c.type === 'digit' ? 0.45 : 0.9), c.w * 0.2 + 2, 0, 0, 7); ctx.fill();
+    if (c.type === 'digit') { ctx.beginPath(); ctx.ellipse(c.x + 4, c.y + 1, c.w * 0.42, G.ry * 0.12 + 2, 0, 0, 7); ctx.fill(); }
+    else { ctx.beginPath(); ctx.ellipse(c.x + c.w * 0.25, c.y + 2, c.w * 0.9, c.w * 0.2 + 2, 0, 0, 7); ctx.fill(); }
     if (c.type === 'digit') drawDigit(c); else drawStick(c);
     if (c.ember > 0) {
       const a = c.ember;
