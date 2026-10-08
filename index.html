@@ -461,6 +461,8 @@ function analyseMic(dt) {
   // noise floor: falls quickly, creeps up slowly, frozen during loud events and calibration
   // (a loud sound that lasts longer than any blow, e.g. a fan switching on, becomes the new floor)
   det.loudT = det.excess >= thDb * 0.6 ? (det.loudT || 0) + dt : 0;
+  det.age = (det.age || 0) + dt;
+  if (det.age < 2) { det.floor += (low - det.floor) * Math.min(1, dt * 3); det.eff = 0; return; }   // warm-up
   if (low < det.floor) det.floor += (low - det.floor) * Math.min(1, dt * 4);
   else if (det.calib || selfSound) { /* frozen */ }
   else if (det.excess < thDb * 0.6) det.floor += (low - det.floor) * Math.min(1, dt * 0.15);
