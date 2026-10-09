@@ -981,11 +981,17 @@ function popConfetti2D() {
         wx: rand(-14, 14), wy: rand(-10, 10), wz: rand(-5, 5), w: rand(6, 10) * k, h: rand(3.5, 6) * k, col: CONF_COLS[i % CONF_COLS.length],
         foil: Math.random() < 0.18, life: 0, rest: false, depth: rand(-0.85, 0.85) });
     }
-    for (let i = 0; i < 5; i++) {
-      const a = base + rand(-0.15, 0.4) * (side < 0 ? 1 : -1), v = rand(850, 1150) * k, n = 16, seg = rand(9, 13) * k;
-      const s = { x: new Float32Array(n), y: new Float32Array(n), ox: new Float32Array(n), oy: new Float32Array(n), n, seg,
-        col: CONF_COLS[(i * 3 + (side > 0 ? 1 : 0)) % CONF_COLS.length], width: 3.4 * k, tw: rand(0, 6), fresh: true, age: 0, vx: Math.cos(a) * v, vy: Math.sin(a) * v };
-      s.x.fill(ox); s.y.fill(oy); s.ox.fill(ox); s.oy.fill(oy);
+    // streamers fly up to the top third of the screen and drift down slowly (paper ribbon has lots of drag);
+    // speeds follow the screen height so they reach the same place on any phone, sideways reach follows the width
+    const kh = H / 844, kw = Math.min(2.5, (W / 390) / kh);
+    for (let i = 0; i < 6; i++) {
+      const a = -rand(0.98, 1.4), v = rand(1250, 1500) * kh, n = 22, seg = rand(9, 12) * k;
+      const s = { x: new Float32Array(n), y: new Float32Array(n), ox: new Float32Array(n), oy: new Float32Array(n), pin: new Uint8Array(n), n, seg,
+        col: CONF_COLS[(i * 3 + (side > 0 ? 1 : 0)) % CONF_COLS.length], width: 4.6 * k, tw: rand(0, 6), spin: 0, depth: rand(-0.75, 0.75),
+        g: 220 * kh, fresh: true, age: 0, still: 0, settled: false, vx: -side * Math.cos(a) * v * kw, vy: Math.sin(a) * v };
+      // laid out behind the popper along the launch line, so it comes out as a long unrolled ribbon, not a clump
+      const ux = s.vx / Math.hypot(s.vx, s.vy), uy = s.vy / Math.hypot(s.vx, s.vy);
+      for (let j = 0; j < n; j++) { s.x[j] = s.ox[j] = ox - ux * seg * j; s.y[j] = s.oy[j] = oy - uy * seg * j; }
       streamers.push(s);
     }
   }
@@ -1014,21 +1020,42 @@ function updateConfetti2D(dt) {
   }
   for (let si = streamers.length - 1; si >= 0; si--) {
     const s = streamers[si];
-    const damp = Math.exp(-1.5 * dt), gdt = grav * 1.6 * dt * dt;
+    if (s.settled) continue;
+    const damp = Math.exp(-1.8 * dt), gdt = s.g * dt * dt;
     s.age += dt;
+    let pinned = 0;
+    for (let i = 0; i < s.n; i++) if (s.pin[i]) pinned++;
+    if (!pinned) s.spin += dt;                      // the ribbon only twists while it's in the air
     for (let i = 0; i < s.n; i++) {
+      if (s.pin[i]) continue;
       let vx = (s.x[i] - s.ox[i]) * damp, vy = (s.y[i] - s.oy[i]) * damp;
-      if (s.fresh) { const f = 1 - i * 0.035; vx = s.vx * dt * f; vy = s.vy * dt * f; }   // whole ribbon is ejected, tail a bit slower
+      if (s.fresh) { vx = s.vx * dt; vy = s.vy * dt; }   // the whole ribbon is ejected together
+      const py = s.y[i];
       s.ox[i] = s.x[i]; s.oy[i] = s.y[i];
-      s.x[i] += vx + Math.sin(st.t * 5 + i * 0.7 + s.tw) * 0.25 * k; s.y[i] += vy + gdt;
+      s.x[i] += vx + (pinned ? 0 : Math.sin(st.t * 3 + i * 0.25 + s.tw) * 0.04 * k); s.y[i] += vy + gdt;
+      // a ribbon falling onto the cake catches on the top and drapes over the side
+      if (S.cake && s.y[i] > py && Math.abs(s.x[i] - G.cx) < G.rx * 0.95) {
+        const u = (s.x[i] - G.cx) / G.rx, top = G.top + s.depth * G.ry * Math.sqrt(1 - u * u);
+        if (py < top && s.y[i] >= top && s.age > 0.5) { s.y[i] = top; s.ox[i] = s.x[i]; s.oy[i] = top; s.pin[i] = 1; }
+      }
     }
     s.fresh = false;
     let out = true;
     for (let i = 0; i < s.n && out; i++) out = gone(s.x[i], s.y[i], s.age);
     if (out) { streamers.splice(si, 1); continue; }
     for (let it = 0; it < 3; it++) for (let i = 1; i < s.n; i++) {
-      const dx = s.x[i] - s.x[i - 1], dy = s.y[i] - s.y[i - 1], d = Math.hypot(dx, dy) || 1e-6, f = (d - s.seg) / d * 0.5;
-      s.x[i - 1] += dx * f; s.y[i - 1] += dy * f; s.x[i] -= dx * f; s.y[i] -= dy * f;
+      const pa = s.pin[i - 1], pb = s.pin[i];
+      if (pa && pb) continue;
+      const dx = s.x[i] - s.x[i - 1], dy = s.y[i] - s.y[i - 1], d = Math.hypot(dx, dy) || 1e-6, f = (d - s.seg) / d;
+      const fa = pb ? f : pa ? 0 : f * 0.5, fb = pa ? f : pb ? 0 : f * 0.5;
+      s.x[i - 1] += dx * fa; s.y[i - 1] += dy * fa; s.x[i] -= dx * fb; s.y[i] -= dy * fb;
+    }
+    // once it has stopped swinging, freeze it so it doesn't twitch
+    if (pinned) {
+      let mv = 0;
+      for (let i = 0; i < s.n; i++) mv = Math.max(mv, Math.abs(s.x[i] - s.ox[i]) + Math.abs(s.y[i] - s.oy[i]));
+      s.still = mv < 0.05 ? s.still + dt : 0;
+      if (s.still > 0.4) s.settled = true;
     }
   }
 }
@@ -1036,7 +1063,7 @@ function drawConfetti2D(c2) {
   for (const s of streamers) {
     c2.lineCap = 'round';
     for (let i = 1; i < s.n; i++) {
-      const tw = s.tw + i * 0.9 + st.t * 2, f = Math.abs(Math.cos(tw)), sh = 0.55 + 0.45 * f;
+      const tw = s.tw + i * 0.9 + s.spin * 2, f = Math.abs(Math.cos(tw)), sh = 0.55 + 0.45 * f;
       const [r, g, b] = s.col;
       c2.strokeStyle = `rgb(${r * sh | 0},${g * sh | 0},${b * sh | 0})`; c2.lineWidth = s.width * (0.25 + 0.75 * f);
       c2.beginPath(); c2.moveTo(s.x[i - 1], s.y[i - 1]); c2.lineTo(s.x[i], s.y[i]); c2.stroke();
@@ -1668,7 +1695,8 @@ window.candleDebug = {
   loseContext3D() { if (R3) R3.loseContext(); },
   advance(sec) { for (let t = 0; t < sec; t += 1 / 60) { update(1 / 60); if (use3D()) R3.stepFx(1 / 60); } },
   fx() { return { shells: FW.shells.length, stars: FW.parts.length, queued: FW.queue.length, confetti: confetti.length, streamers: streamers.length,
-    resting2D: confetti.filter(p => p.rest).length, snap2D: confetti.filter(p => p.rest).map(p => [p.x, p.y, p.rx, p.ry, p.rz].join()).join('|'),
+    resting2D: confetti.filter(p => p.rest).length, streamerY: streamers.map(s => Math.round(Math.min(...s.y))), draped: streamers.filter(s => s.settled).length,
+    snapS: streamers.filter(s => s.settled).map(s => Array.from(s.x).concat(Array.from(s.y)).join()).join('|'), snap2D: confetti.filter(p => p.rest).map(p => [p.x, p.y, p.rx, p.ry, p.rz].join()).join('|'),
     r3: R3 ? R3.fx() : null }; },
   calText() { return calEl.hidden ? null : $('calTitle').textContent + ' | ' + $('calText').textContent; }
 };
