@@ -8,6 +8,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>吹蠟燭</title>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%95%AF%EF%B8%8F%3C/text%3E%3C/svg%3E">
 <style>
   :root{
@@ -22,7 +23,13 @@
     font-family:-apple-system,BlinkMacSystemFont,"PingFang TC","Noto Sans TC","Microsoft JhengHei",system-ui,sans-serif;
     overflow:hidden;overscroll-behavior:none;touch-action:manipulation;-webkit-user-select:none;user-select:none}
   button{font:inherit;color:inherit;cursor:pointer}
-  canvas#scene{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none}
+  canvas#scene,canvas#scene3d{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none}
+  .top .right{display:flex;gap:8px}
+  .icon-btn.mode{padding:0 14px;font-size:15px;font-weight:700;letter-spacing:.04em}
+  .toast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom) + 80px);transform:translateX(-50%);z-index:9;
+    width:max-content;max-width:calc(100% - 32px);padding:10px 16px;border-radius:14px;background:rgba(26,15,34,.94);
+    border:1px solid var(--line);font-size:14px;line-height:1.5;text-align:center;transition:opacity .4s;pointer-events:none}
+  .toast.off{opacity:0}
 
   .top{position:fixed;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;
     padding:calc(env(safe-area-inset-top) + 12px) 16px 0;pointer-events:none;z-index:5}
@@ -146,7 +153,10 @@
 
 <header class="top">
   <button id="btnRelight" class="icon-btn" aria-label="全部重新點燃">🔥 重新點燃</button>
-  <button id="btnSettings" class="icon-btn round" aria-label="設定">⚙️</button>
+  <div class="right">
+    <button id="btnRender" class="icon-btn mode" aria-label="切換 2D／3D 畫面">3D</button>
+    <button id="btnSettings" class="icon-btn round" aria-label="設定">⚙️</button>
+  </div>
 </header>
 <div id="hint" class="hint">對著麥克風吹氣 🌬️</div>
 
@@ -155,6 +165,8 @@
   <span class="meter"><span class="fill" id="pillFill"></span><span class="mark" id="pillMark"></span></span>
   <span class="lbl">靈敏度</span>
 </button>
+
+<div id="toast" class="toast off" role="status"></div>
 
 <div id="celebrate" class="celebrate hidden" aria-live="polite">
   <div class="msg" id="celebrateMsg">生日快樂！</div>
@@ -235,7 +247,7 @@ const rand = (a, b) => a + Math.random() * (b - a);
 
 /* ---------------- settings ---------------- */
 const KEY = 'blow-candle-v2';
-const DEFAULTS = { mode: 'single', count: 5, number: '18', threshold: 40, msg: '生日快樂！', sfx: true, song: true, calibrated: false };
+const DEFAULTS = { mode: 'single', count: 5, number: '18', threshold: 40, msg: '生日快樂！', sfx: true, song: true, calibrated: false, render: '3d' };
 const S = Object.assign({}, DEFAULTS);
 try {
   const raw = localStorage.getItem(KEY);
@@ -251,6 +263,7 @@ try {
   if (q.has('num')) { S.mode = 'number'; S.number = q.get('num'); }
   if (q.has('count')) { S.mode = 'single'; S.count = +q.get('count'); }
   if (q.has('th')) S.threshold = +q.get('th');
+  if (q.has('r')) S.render = q.get('r') === '2d' ? '2d' : '3d';
 } catch (e) {}
 function sanitize() {
   S.mode = S.mode === 'number' ? 'number' : 'single';
@@ -259,6 +272,7 @@ function sanitize() {
   S.threshold = clamp(Math.round(+S.threshold) || 40, 5, 95);
   S.msg = String(S.msg == null ? DEFAULTS.msg : S.msg).slice(0, 24);
   S.sfx = !!S.sfx; S.song = !!S.song; S.calibrated = !!S.calibrated;
+  S.render = S.render === '2d' ? '2d' : '3d';
 }
 sanitize();
 function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} }
@@ -518,6 +532,7 @@ function resize() {
   W = window.innerWidth; H = window.innerHeight;
   cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
   layout();
+  if (R3) R3.resize();
 }
 
 function layout() {
@@ -530,8 +545,10 @@ function layout() {
 
 /* ---- candle placement ---- */
 const digitCache = new Map();
+let layoutVer = 0;
 function placeCandles() {
   if (!W || !cands.length) return;
+  layoutVer++;
   if (cands[0].type === 'digit') placeDigits(); else placeSticks();
   cands.sort((a, b) => a.y - b.y);
 }
@@ -591,7 +608,7 @@ function placeDigits() {
   let x = G.cx - total / 2;
   cands.forEach((c, k) => {
     const sp = sprites[k];
-    c.sprite = sp; c.w = sp.w; c.h = sp.h;
+    c.sprite = sp; c.w = sp.w; c.h = sp.h; c.dh = dh;
     c.x = x + sp.w / 2; c.y = G.top + G.ry * 0.12;
     c.left = x; c.topY = c.y - sp.base;
     c.wickX = x + sp.wickX; c.wickY = c.topY + sp.wickY - dh * 0.07;
@@ -995,11 +1012,26 @@ function drawFlame(c, t) {
   ctx.restore();
 }
 
+// in 3D mode the 2D canvas only carries the confetti, on top of the WebGL canvas
+function renderOverlay() {
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  ctx.clearRect(0, 0, W, H);
+  for (const p of confetti) {
+    ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot);
+    ctx.scale(Math.cos(p.life * 6 + p.rot), 1);
+    ctx.fillStyle = p.c; ctx.globalAlpha = Math.min(1, (7 - p.life) / 1.5);
+    ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h); ctx.restore();
+  }
+  ctx.globalAlpha = 1;
+}
+
 /* ---------------- loop ---------------- */
 let last = performance.now();
 function frame(now) {
   const dt = Math.min(0.05, Math.max(0, (now - last) / 1000)); last = now;
-  update(dt); render(); updateMeters();
+  update(dt);
+  if (use3D()) { R3.render(dt); renderOverlay(); } else render();
+  updateMeters();
   requestAnimationFrame(frame);
 }
 
@@ -1133,10 +1165,8 @@ $('btnCalib').addEventListener('click', startCalib);
 $('calBtn').addEventListener('click', startCalib);
 $('calBtn2').addEventListener('click', closeCalib);
 
-// tap a candle: blow it out / relight it
-cv.addEventListener('pointerdown', e => {
-  ensureAudio();
-  const px = e.clientX, py = e.clientY;
+// tap a candle: blow it out / relight it; drag (3D) to look around
+function pick2D(px, py) {
   let best = null, bd = 1e9;
   for (const c of cands) {
     const halfW = Math.max(c.w / 2 + 8, 22);
@@ -1146,13 +1176,59 @@ cv.addEventListener('pointerdown', e => {
       if (d < bd) { bd = d; best = c; }
     }
   }
+  return best;
+}
+function tapAt(px, py) {
+  const best = use3D() ? R3.pick(px, py) : pick2D(px, py);
   if (!best) return;
   if (best.lit) extinguish(best, 0.8);
   else if (!best.pending) {
     if (st.celebrated) { hideCelebrate(); stopSong(); st.celebrated = false; st.celebrateAt = 0; }
     ignite(best, false);
   }
+}
+let pDown = null;
+cv.addEventListener('pointerdown', e => {
+  ensureAudio();
+  pDown = { x: e.clientX, y: e.clientY, moved: false };
+  try { cv.setPointerCapture(e.pointerId); } catch (err) {}
 });
+cv.addEventListener('pointermove', e => {
+  if (!pDown) return;
+  const dx = e.clientX - pDown.x, dy = e.clientY - pDown.y;
+  if (!pDown.moved && Math.hypot(dx, dy) > 10) pDown.moved = true;
+  if (pDown.moved && use3D()) R3.drag(dx, dy, pDown);
+});
+cv.addEventListener('pointerup', e => {
+  const d = pDown; pDown = null;
+  if (d && !d.moved) tapAt(e.clientX, e.clientY);
+});
+cv.addEventListener('pointercancel', () => { pDown = null; });
+
+// 2D / 3D switch
+let toastTimer = 0;
+function showToast(msg) {
+  const el = $('toast'); el.textContent = msg; el.classList.remove('off');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.add('off'), 4500);
+}
+function updateRenderBtn() {
+  const b = $('btnRender');
+  b.textContent = S.render === '2d' ? '2D' : r3State === 'loading' ? '3D…' : '3D';
+  b.title = S.render === '2d' ? '目前是 2D 畫面，點一下切換成 3D' : '目前是 3D 畫面，點一下切換成 2D';
+}
+function applyRenderMode() {
+  if (R3) R3.show(!!use3D());
+  updateRenderBtn();
+}
+$('btnRender').addEventListener('click', () => {
+  S.render = S.render === '3d' ? '2d' : '3d'; save();
+  if (S.render === '3d') {
+    if (r3State === 'failed') { showToast('這台裝置無法顯示 3D 畫面，維持 2D。'); S.render = '2d'; save(); }
+    else ensure3D();
+  }
+  applyRenderMode();
+});
+
 
 // start
 let wakeLock = null;
@@ -1208,8 +1284,563 @@ window.candleDebug = {
       boxes: cands.map(c => ({ x: Math.round(c.x), y: Math.round(c.y), wickX: Math.round(c.wickX), wickY: Math.round(c.wickY) })) };
   },
   calibrate: startCalib,
+  render() { return { mode: use3D() ? '3d' : '2d', r3State, info: R3 ? R3.info() : null }; },
+  project3D(i) { return R3 ? R3.project(i) : null; },
   calText() { return calEl.hidden ? null : $('calTitle').textContent + ' | ' + $('calText').textContent; }
 };
+
+/* ================= 3D renderer (three.js, loaded on demand) =================
+   Shares all candle state with the 2D version; only drawing and tap-picking differ.
+   Light: one shadow-casting point light at the centre of the lit flames plus up to
+   three unshadowed point lights for local groups, all flickering with the flames.
+   Flames are camera-facing shader quads (HDR colour -> bloom). */
+let R3 = null, r3State = 'idle';           // idle | loading | ready | failed
+const use3D = () => S.render === '3d' && r3State === 'ready' && R3;
+async function ensure3D() {
+  if (r3State === 'ready' || r3State === 'loading') return;
+  r3State = 'loading'; updateRenderBtn();
+  try {
+    const THREE = await import('three');
+    const [a, b, c, d] = await Promise.all([
+      import('three/addons/postprocessing/EffectComposer.js'), import('three/addons/postprocessing/RenderPass.js'),
+      import('three/addons/postprocessing/UnrealBloomPass.js'), import('three/addons/postprocessing/OutputPass.js')]);
+    R3 = create3D(THREE, { EffectComposer: a.EffectComposer, RenderPass: b.RenderPass, UnrealBloomPass: c.UnrealBloomPass, OutputPass: d.OutputPass });
+    r3State = 'ready';
+  } catch (e) {
+    console.warn('3D unavailable', e);
+    r3State = 'failed'; R3 = null;
+    if (S.render === '3d') showToast('3D 畫面無法載入（需要較新的瀏覽器與網路連線），已改用 2D。');
+  }
+  updateRenderBtn(); applyRenderMode();
+}
+
+function traceDigit(ch) {
+  // render the glyph, follow the pixel boundary, simplify + smooth into closed outlines
+  const FH = 180;
+  const font = `900 ${FH}px "Arial Rounded MT Bold","Arial Black","Helvetica Neue",Arial,sans-serif`;
+  const cnv = document.createElement('canvas'); let g = cnv.getContext('2d'); g.font = font;
+  const m = g.measureText(ch);
+  const asc = m.actualBoundingBoxAscent || FH * 0.72, desc = m.actualBoundingBoxDescent || 0;
+  const left = m.actualBoundingBoxLeft || 0, right = m.actualBoundingBoxRight || m.width;
+  const pad = 4, w = Math.ceil(left + right) + pad * 2, h = Math.ceil(asc + desc) + pad * 2;
+  cnv.width = w; cnv.height = h; g = cnv.getContext('2d', { willReadFrequently: true });
+  g.font = font; g.fillStyle = '#fff'; g.fillText(ch, pad + left, pad + asc);
+  const px = g.getImageData(0, 0, w, h).data;
+  const on = (x, y) => x >= 0 && y >= 0 && x < w && y < h && px[(y * w + x) * 4 + 3] > 127;
+  const out = new Map();
+  const add = (x1, y1, x2, y2) => { const k = x1 + ',' + y1; if (!out.has(k)) out.set(k, []); out.get(k).push([x2, y2]); };
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    if (!on(x, y)) continue;
+    if (!on(x, y - 1)) add(x, y, x + 1, y);
+    if (!on(x + 1, y)) add(x + 1, y, x + 1, y + 1);
+    if (!on(x, y + 1)) add(x + 1, y + 1, x, y + 1);
+    if (!on(x - 1, y)) add(x, y + 1, x, y);
+  }
+  const loops = [];
+  for (const [k0, list0] of out) {
+    while (list0.length) {
+      const [sx, sy] = k0.split(',').map(Number);
+      const pts = [[sx, sy]];
+      let [cx, cy] = list0.pop();
+      let guard = 0;
+      while (!(cx === sx && cy === sy) && guard++ < 100000) {
+        pts.push([cx, cy]);
+        const l = out.get(cx + ',' + cy); if (!l || !l.length) break;
+        [cx, cy] = l.pop();
+      }
+      if (pts.length > 8) loops.push(pts);
+    }
+  }
+  const rdp = (pts, eps) => {
+    if (pts.length < 3) return pts;
+    let dmax = 0, idx = 0; const [ax, ay] = pts[0], [bx, by] = pts[pts.length - 1];
+    const L = Math.hypot(bx - ax, by - ay) || 1;
+    for (let i = 1; i < pts.length - 1; i++) {
+      const d = Math.abs((bx - ax) * (ay - pts[i][1]) - (ax - pts[i][0]) * (by - ay)) / L;
+      if (d > dmax) { dmax = d; idx = i; }
+    }
+    if (dmax <= eps) return [pts[0], pts[pts.length - 1]];
+    return rdp(pts.slice(0, idx + 1), eps).slice(0, -1).concat(rdp(pts.slice(idx), eps));
+  };
+  const chaikin = pts => {
+    const r = [];
+    for (let i = 0; i < pts.length; i++) {
+      const a = pts[i], b = pts[(i + 1) % pts.length];
+      r.push([a[0] * 0.75 + b[0] * 0.25, a[1] * 0.75 + b[1] * 0.25], [a[0] * 0.25 + b[0] * 0.75, a[1] * 0.25 + b[1] * 0.75]);
+    }
+    return r;
+  };
+  const gh = asc + desc, base = pad + asc + desc, cxm = w / 2;
+  const polys = loops.map(p => {
+    const half = p.length >> 1;
+    let s = rdp(p.slice(0, half + 1), 0.8).slice(0, -1).concat(rdp(p.slice(half).concat([p[0]]), 0.8).slice(0, -1));
+    s = chaikin(chaikin(s));
+    return s.map(([x, y]) => [(x - cxm) / gh, (base - y) / gh]);
+  });
+  const area = p => { let a = 0; for (let i = 0; i < p.length; i++) { const q = p[(i + 1) % p.length]; a += p[i][0] * q[1] - q[0] * p[i][1]; } return a / 2; };
+  const inside = (pt, poly) => {
+    let c = false;
+    for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+      const [xi, yi] = poly[i], [xj, yj] = poly[j];
+      if ((yi > pt[1]) !== (yj > pt[1]) && pt[0] < (xj - xi) * (pt[1] - yi) / (yj - yi) + xi) c = !c;
+    }
+    return c;
+  };
+  const info = polys.map((p, i) => ({ p, a: Math.abs(area(p)), depth: polys.filter((q, j) => j !== i && inside(p[0], q)).length }));
+  const outers = info.filter(o => o.depth % 2 === 0), holes = info.filter(o => o.depth % 2 === 1);
+  let top = 0; for (const o of outers) for (const [, y] of o.p) top = Math.max(top, y);
+  let sx = 0, n = 0; for (const o of outers) for (const [x, y] of o.p) if (y > top - 0.035) { sx += x; n++; }
+  return { outers, holes, top, wickX: n ? sx / n : 0 };
+}
+
+function create3D(THREE, A) {
+  const canvas3 = document.createElement('canvas'); canvas3.id = 'scene3d';
+  document.body.insertBefore(canvas3, cv);
+  const renderer = new THREE.WebGLRenderer({ canvas: canvas3, antialias: true, powerPreference: 'high-performance' });
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.1;
+  renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap; renderer.shadowMap.autoUpdate = false;
+  canvas3.addEventListener('webglcontextlost', e => { e.preventDefault(); r3State = 'failed'; applyRenderMode(); showToast('3D 繪圖中斷，已改用 2D。'); });
+
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x070409);
+  scene.fog = new THREE.FogExp2(0x070409, 0.055);
+  const camera = new THREE.PerspectiveCamera(30, 1, 0.05, 80);
+  const composer = new A.EffectComposer(renderer);
+  composer.addPass(new A.RenderPass(scene, camera));
+  const bloom = new A.UnrealBloomPass(new THREE.Vector2(256, 256), 0.9, 0.6, 0.85);
+  composer.addPass(bloom);
+  composer.addPass(new A.OutputPass());
+
+  // ---------- textures ----------
+  const canvasTex = (w, h, draw, srgb = true) => {
+    const c = document.createElement('canvas'); c.width = w; c.height = h; draw(c.getContext('2d'), w, h);
+    const t = new THREE.CanvasTexture(c); if (srgb) t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t;
+  };
+  const radialTex = canvasTex(128, 128, (g, w, h) => {
+    const gr = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+    gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.2, 'rgba(255,255,255,.5)');
+    gr.addColorStop(0.5, 'rgba(255,255,255,.12)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = gr; g.fillRect(0, 0, w, h);
+  });
+  const bokehTex = canvasTex(128, 128, g => {
+    const gr = g.createRadialGradient(64, 64, 0, 64, 64, 62);
+    gr.addColorStop(0, 'rgba(255,255,255,.55)'); gr.addColorStop(0.8, 'rgba(255,255,255,.75)');
+    gr.addColorStop(0.92, 'rgba(255,255,255,.9)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = gr; g.beginPath(); g.arc(64, 64, 62, 0, 7); g.fill();
+  });
+  const woodTex = canvasTex(512, 512, (g, w, h) => {
+    g.fillStyle = '#3b2317'; g.fillRect(0, 0, w, h);
+    for (let i = 0; i < 300; i++) {
+      const y = Math.random() * h, ph = Math.random() * 6;
+      g.strokeStyle = Math.random() < 0.5 ? `rgba(18,9,5,${Math.random() * 0.3})` : `rgba(110,68,40,${Math.random() * 0.22})`;
+      g.lineWidth = Math.random() * 3 + 0.4; g.beginPath();
+      for (let x = 0; x <= w; x += 16) g.lineTo(x, y + Math.sin(x / w * Math.PI * 4 + ph) * 3);
+      g.stroke();
+    }
+    g.fillStyle = 'rgba(0,0,0,.5)'; for (let y = 0; y < h; y += 128) g.fillRect(0, y, w, 2);
+  });
+  woodTex.wrapS = woodTex.wrapT = THREE.RepeatWrapping; woodTex.repeat.set(2.5, 2.5);
+  const sssTex = canvasTex(4, 128, (g, w, h) => {          // wax glows warm just below the flame
+    const gr = g.createLinearGradient(0, h, 0, 0);
+    gr.addColorStop(0, '#000'); gr.addColorStop(0.62, '#000'); gr.addColorStop(0.9, '#555'); gr.addColorStop(1, '#fff');
+    g.fillStyle = gr; g.fillRect(0, 0, w, h);
+  });
+  const stripeCache = new Map();
+  function stripeTex(color) {
+    if (!stripeCache.has(color)) {
+      const t = canvasTex(128, 256, (g, w, h) => {
+        g.fillStyle = color; g.fillRect(0, 0, w, h);
+        g.fillStyle = 'rgba(255,255,255,.88)';
+        const pitch = 64, sw = 20;               // slanted so they wrap seamlessly around the candle
+        for (let y0 = -2 * pitch; y0 < h + 2 * pitch; y0 += pitch) {
+          g.beginPath(); g.moveTo(0, y0); g.lineTo(w, y0 - pitch); g.lineTo(w, y0 - pitch + sw); g.lineTo(0, y0 + sw); g.closePath(); g.fill();
+        }
+        for (let i = 0; i < 140; i++) { g.fillStyle = `rgba(255,255,255,${Math.random() * 0.5})`; g.fillRect(Math.random() * w, Math.random() * h, 1, 1); }
+      });
+      t.wrapS = t.wrapT = THREE.RepeatWrapping;
+      stripeCache.set(color, t);
+    }
+    const t = stripeCache.get(color).clone(); t.needsUpdate = true; return t;
+  }
+
+  // ---------- materials ----------
+  const M = {
+    table: new THREE.MeshStandardMaterial({ map: woodTex, roughness: 0.6 }),
+    plate: new THREE.MeshPhysicalMaterial({ color: 0xf4eff3, roughness: 0.16, clearcoat: 1, clearcoatRoughness: 0.06, side: THREE.DoubleSide }),
+    sponge: new THREE.MeshPhysicalMaterial({ color: 0xf29dbb, roughness: 0.62, sheen: 0.7, sheenColor: new THREE.Color(0xffd6e4), sheenRoughness: 0.5 }),
+    glaze: new THREE.MeshPhysicalMaterial({ color: 0xfff6f7, roughness: 0.2, clearcoat: 0.8, clearcoatRoughness: 0.12, side: THREE.DoubleSide }),
+    pearl: new THREE.MeshPhysicalMaterial({ color: 0xfffafc, roughness: 0.12, iridescence: 0.8, iridescenceIOR: 1.5, clearcoat: 1 }),
+    dot: new THREE.MeshStandardMaterial({ roughness: 0.3 }),
+    sprinkle: new THREE.MeshStandardMaterial({ roughness: 0.35 }),
+    wick: new THREE.MeshStandardMaterial({ color: 0x1b130e, roughness: 1 }),
+  };
+
+  // ---------- static scene ----------
+  const R = 1, Y0 = 0.04, CH = 0.66, T = Y0 + CH;
+  const V2 = (x, y) => new THREE.Vector2(x, y);
+  const table = new THREE.Mesh(new THREE.PlaneGeometry(40, 40), M.table);
+  table.rotation.x = -Math.PI / 2; table.receiveShadow = true; scene.add(table);
+  const plate = new THREE.Mesh(new THREE.LatheGeometry([V2(0, 0.001), V2(1.2, 0.001), V2(1.3, 0.012), V2(1.42, 0.05), V2(1.445, 0.064),
+    V2(1.42, 0.07), V2(1.3, 0.045), V2(1.15, Y0), V2(0, Y0)], 96), M.plate);
+  plate.castShadow = true; plate.receiveShadow = true; scene.add(plate);
+  const body = new THREE.Mesh(new THREE.LatheGeometry([V2(0, Y0), V2(R - 0.03, Y0), V2(R, Y0 + 0.03), V2(R, T - 0.01), V2(R - 0.01, T)], 128), M.sponge);
+  body.castShadow = true; body.receiveShadow = true; scene.add(body);
+  const capProfile = [V2(0, T + 0.036), V2(0.5, T + 0.035), V2(0.88, T + 0.031), V2(0.97, T + 0.022), V2(1.012, T + 0.004), V2(1.022, T - 0.026)];
+  const cap = new THREE.Mesh(new THREE.LatheGeometry(capProfile, 128), M.glaze);
+  cap.castShadow = true; cap.receiveShadow = true; scene.add(cap);
+  const capY = r => T + 0.036 - 0.006 * Math.pow(Math.min(1, r / 0.9), 2);
+  // drips
+  const DR = 1.021, DTOP = T - 0.024;
+  const dripG = new THREE.CylinderGeometry(DR, DR, 1, 180, 30, true);
+  const bumps = Array.from({ length: 13 }, (_, i) => ({ a: (i + Math.random() * 0.6) / 13 * Math.PI * 2, w: 0.08 + Math.random() * 0.08, len: 0.06 + Math.random() * 0.3 }));
+  const dripLen = a => {
+    let L = 0.05;
+    for (const b of bumps) { let d = Math.abs(a - b.a); d = Math.min(d, 2 * Math.PI - d); L += b.len * Math.exp(-((d / b.w) ** 2) * 1.4); }
+    return Math.min(L, CH * 0.7);
+  };
+  { const p = dripG.attributes.position;
+    for (let i = 0; i < p.count; i++) {
+      const x = p.getX(i), y = p.getY(i), z = p.getZ(i), a = Math.atan2(x, z), s = 0.5 - y, L = dripLen(a);
+      const r = DR + 0.013 * Math.pow(s, 5) * Math.min(1, (L - 0.05) / 0.1);
+      p.setXYZ(i, Math.sin(a) * r, DTOP - s * L, Math.cos(a) * r);
+    }
+    dripG.computeVertexNormals(); }
+  const drips = new THREE.Mesh(dripG, M.glaze); drips.castShadow = true; drips.receiveShadow = true; scene.add(drips);
+  const m4 = new THREE.Matrix4(), q4 = new THREE.Quaternion(), e4 = new THREE.Euler(), v4 = new THREE.Vector3(), s4 = new THREE.Vector3(1, 1, 1);
+  const pearls = new THREE.InstancedMesh(new THREE.SphereGeometry(0.038, 16, 12), M.pearl, 64);
+  for (let i = 0; i < 64; i++) { const a = i / 64 * Math.PI * 2; pearls.setMatrixAt(i, m4.makeTranslation(Math.sin(a) * (R + 0.006), Y0 + 0.036, Math.cos(a) * (R + 0.006))); }
+  pearls.castShadow = true; pearls.receiveShadow = true; scene.add(pearls);
+  const pastel = ['#ffd166', '#9fe7ff', '#c7a6ff', '#a6f0c6', '#ff9fc0'];
+  const dots = new THREE.InstancedMesh(new THREE.SphereGeometry(0.017, 10, 8), M.dot, 40);
+  for (let i = 0; i < 40; i++) {
+    const a = rand(0, Math.PI * 2), y = rand(Y0 + 0.12, T - 0.32);
+    dots.setMatrixAt(i, m4.makeTranslation(Math.sin(a) * (R + 0.004), y, Math.cos(a) * (R + 0.004)));
+    dots.setColorAt(i, new THREE.Color(pastel[i % pastel.length]));
+  }
+  dots.receiveShadow = true; scene.add(dots);
+  const sprinkleCols = ['#ff5d8f', '#ffd23f', '#3bceac', '#5e9cff', '#ffffff', '#c77dff'];
+  const sprinkles = new THREE.InstancedMesh(new THREE.CapsuleGeometry(0.0085, 0.034, 3, 6), M.sprinkle, 170);
+  for (let i = 0; i < 170; i++) {
+    const r = Math.sqrt(Math.random()) * 0.9, a = rand(0, Math.PI * 2);
+    q4.setFromEuler(e4.set(Math.PI / 2, rand(0, Math.PI * 2), 0, 'YXZ'));
+    sprinkles.setMatrixAt(i, m4.compose(v4.set(Math.sin(a) * r, capY(r) + 0.006, Math.cos(a) * r), q4, s4));
+    sprinkles.setColorAt(i, new THREE.Color(sprinkleCols[i % sprinkleCols.length]));
+  }
+  sprinkles.receiveShadow = true; scene.add(sprinkles);
+  // bokeh fairy lights far behind
+  const bokeh3 = [];
+  for (let i = 0; i < 26; i++) {
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: bokehTex, color: new THREE.Color(Math.random() < 0.7 ? 0xffb070 : 0xff7fa8),
+      blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, fog: false }));
+    sp.position.set(rand(-8, 8), rand(0.8, 6), rand(-14, -9)); sp.scale.setScalar(rand(0.5, 1.5));
+    sp.userData.base = rand(0.12, 0.35); sp.userData.ph = rand(0, 6);
+    scene.add(sp); bokeh3.push(sp);
+  }
+
+  // ---------- lights ----------
+  const hemi = new THREE.HemisphereLight(0x5d4c88, 0x1c0f08, 0.3); scene.add(hemi);
+  const rim = new THREE.DirectionalLight(0x8494ff, 0.35); rim.position.set(-3, 4, -6); scene.add(rim);
+  const main = new THREE.PointLight(0xffa24c, 0, 0, 2);
+  main.castShadow = true; main.shadow.mapSize.set(512, 512); main.shadow.bias = -0.002; main.shadow.normalBias = 0.015;
+  main.shadow.camera.near = 0.02; main.shadow.camera.far = 30; scene.add(main);
+  const fills = [0, 1, 2].map(() => { const l = new THREE.PointLight(0xff9a40, 0, 0, 2); scene.add(l); return l; });
+
+  // ---------- flames ----------
+  const FV = `
+    uniform float uLean;
+    varying vec2 vUv;
+    void main() {
+      vUv = uv;
+      vec3 p = position;
+      p.x += uLean * pow(uv.y, 1.5) * 1.6;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
+    }`;
+  const FF = `
+    uniform float uTime, uSeed, uWind, uAlpha;
+    varying vec2 vUv;
+    float hash(float n) { return fract(sin(n) * 43758.5453); }
+    float noise(float x) { float i = floor(x), f = fract(x); return mix(hash(i), hash(i + 1.0), f * f * (3.0 - 2.0 * f)); }
+    float noise2(vec2 p) {
+      vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f); float n = i.x + i.y * 57.0;
+      return mix(mix(hash(n), hash(n + 1.0), f.x), mix(hash(n + 57.0), hash(n + 58.0), f.x), f.y);
+    }
+    void main() {
+      float y = vUv.y, x = vUv.x * 2.0 - 1.0, t = uTime;
+      float sway = (noise(t * 3.1 + uSeed) - 0.5) * 0.3 * (1.0 + uWind * 1.5)
+                 + (noise2(vec2(y * 4.0 - t * 6.5, uSeed)) - 0.5) * 0.28 * (1.0 + uWind);
+      x -= sway * pow(y, 1.3);
+      float w = 0.56 * pow(clamp(y / 0.24, 0.0, 1.0), 0.55) * pow(clamp((1.0 - y) / 0.76, 0.0, 1.0), 0.9);
+      float d = abs(x) / max(w, 1e-3);
+      float a = 1.0 - smoothstep(0.5, 1.0, d);
+      a *= smoothstep(1.0, 0.6 + 0.12 * noise(t * 8.0 + uSeed * 3.0), y);
+      float core = (1.0 - smoothstep(0.0, 0.6, d)) * smoothstep(0.06, 0.24, y) * (1.0 - smoothstep(0.42, 0.78, y));
+      vec3 col = mix(vec3(1.0, 0.32, 0.05), vec3(1.0, 0.68, 0.26), smoothstep(0.1, 0.65, 1.0 - d));
+      col = mix(col, vec3(1.0, 0.94, 0.78), core);
+      col *= 1.5 + 2.6 * core;
+      float blue = (1.0 - smoothstep(0.0, 0.17, y)) * (1.0 - smoothstep(0.25, 1.0, d));
+      col = mix(col, vec3(0.22, 0.42, 1.0) * 1.3, blue * 0.85);
+      a *= mix(1.0, 0.6, blue);
+      gl_FragColor = vec4(col, a * uAlpha);
+    }`;
+  const flameGeo = new THREE.PlaneGeometry(1, 1, 1, 10); flameGeo.translate(0, 0.5, 0);
+
+  // ---------- smoke + sparks (point sprites) ----------
+  const PMAX = 500;
+  function makePoints(color, blending, soft) {
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(PMAX * 3), 3));
+    geo.setAttribute('aSize', new THREE.BufferAttribute(new Float32Array(PMAX), 1));
+    geo.setAttribute('aAlpha', new THREE.BufferAttribute(new Float32Array(PMAX), 1));
+    const mat = new THREE.ShaderMaterial({
+      uniforms: { uScale: { value: 500 }, uColor: { value: new THREE.Color(color) } },
+      vertexShader: `attribute float aSize, aAlpha; uniform float uScale; varying float vA;
+        void main() { vec4 mv = modelViewMatrix * vec4(position, 1.0); gl_PointSize = aSize * uScale / -mv.z; vA = aAlpha; gl_Position = projectionMatrix * mv; }`,
+      fragmentShader: `uniform vec3 uColor; varying float vA;
+        void main() { float r = length(gl_PointCoord - 0.5) * 2.0; float a = smoothstep(1.0, 0.0, r); a *= ${soft ? 'a' : '1.0'}; gl_FragColor = vec4(uColor, a * vA); }`,
+      transparent: true, depthWrite: false, blending });
+    const pts = new THREE.Points(geo, mat); pts.frustumCulled = false; pts.renderOrder = 20; scene.add(pts);
+    return { geo, mat, list: [] };
+  }
+  const smoke3 = makePoints(0xb8b4c0, THREE.NormalBlending, true);
+  const spark3 = makePoints(0xffc070, THREE.AdditiveBlending, false);
+  function flushPoints(P, fn) {
+    const pos = P.geo.attributes.position.array, sz = P.geo.attributes.aSize.array, al = P.geo.attributes.aAlpha.array;
+    const n = Math.min(PMAX, P.list.length);
+    for (let i = 0; i < n; i++) { const p = P.list[i]; pos[i * 3] = p.x; pos[i * 3 + 1] = p.y; pos[i * 3 + 2] = p.z; const [s, a] = fn(p); sz[i] = s; al[i] = a; }
+    P.geo.setDrawRange(0, n);
+    P.geo.attributes.position.needsUpdate = P.geo.attributes.aSize.needsUpdate = P.geo.attributes.aAlpha.needsUpdate = true;
+  }
+  function emitSmoke(tip, burst, bias) {
+    if (smoke3.list.length >= PMAX) return;
+    smoke3.list.push({ x: tip.x + rand(-0.004, 0.004), y: tip.y + rand(0, 0.01), z: tip.z + rand(-0.004, 0.004),
+      vx: rand(-0.03, 0.03) + (burst ? rand(-0.08, 0.08) * (0.5 + st.wind) : 0) + bias * 0.05, vz: rand(-0.03, 0.03),
+      vy: burst ? rand(0.12, 0.3) : rand(0.1, 0.17), s: burst ? rand(0.025, 0.05) : rand(0.015, 0.03), g: rand(0.05, 0.1),
+      life: 0, max: burst ? rand(1.4, 2.4) : rand(2, 3.2), seed: rand(0, 9), a: burst ? 0.42 : 0.3 });
+  }
+
+  // ---------- candles ----------
+  const group = new THREE.Group(); scene.add(group);
+  const hitMat = new THREE.MeshBasicMaterial();
+  const digitGeos = new Map();
+  function digitGeo(ch) {
+    if (!digitGeos.has(ch)) {
+      const tr = traceDigit(ch);
+      const shapes = tr.outers.map(o => {
+        const sh = new THREE.Shape(o.p.map(([x, y]) => V2(x, y)));
+        for (const hl of tr.holes) if (inPoly(hl.p[0], o.p)) sh.holes.push(new THREE.Path(hl.p.map(([x, y]) => V2(x, y))));
+        return sh;
+      });
+      const depth = 0.2;
+      const geo = new THREE.ExtrudeGeometry(shapes, { depth, bevelEnabled: true, bevelThickness: 0.035, bevelSize: 0.028, bevelSegments: 3, curveSegments: 4 });
+      geo.translate(0, 0, -depth / 2);
+      digitGeos.set(ch, { geo, top: tr.top + 0.028, wickX: tr.wickX });
+    }
+    return digitGeos.get(ch);
+  }
+  function inPoly(pt, poly) {
+    let c = false;
+    for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+      const [xi, yi] = poly[i], [xj, yj] = poly[j];
+      if ((yi > pt[1]) !== (yj > pt[1]) && pt[0] < (xj - xi) * (pt[1] - yi) / (yj - yi) + xi) c = !c;
+    }
+    return c;
+  }
+  let C3 = [], builtVer = -1, hits = [];
+  function buildCandles3D() {
+    for (const b of C3) b.dispose();
+    group.clear(); C3 = []; hits = [];
+    for (const c of cands) {
+      const u = (c.x - G.cx) / G.rx, v = (c.y - G.top) / G.ry;
+      const sub = new THREE.Group();
+      sub.position.set(u * R * 0.97, capY(Math.hypot(u, v) * R) - 0.004, v * R * 0.97);
+      group.add(sub);
+      const own = [];      // things to dispose
+      let topY, wx = 0, fh, mats;
+      if (c.type === 'stick') {
+        const r = clamp(c.w / G.cw * R * 0.62, 0.02, 0.07), h = clamp(c.h / G.cw * 2 * R * 0.95, 0.28, 0.72);
+        const tex = stripeTex(c.color); tex.repeat.set(1, 0.25 * h / (1.15 * 2 * Math.PI * r));
+        const side = new THREE.MeshPhysicalMaterial({ map: tex, roughness: 0.4, sheen: 0.35, sheenColor: new THREE.Color(0xffffff),
+          emissive: new THREE.Color(0xff8a3d), emissiveMap: sssTex, emissiveIntensity: 0 });
+        const topM = new THREE.MeshStandardMaterial({ color: new THREE.Color(c.color).lerp(new THREE.Color(0xffffff), 0.45), roughness: 0.3,
+          emissive: new THREE.Color(0xff8a3d), emissiveIntensity: 0 });
+        const geo = new THREE.CylinderGeometry(r, r, h, 28, 1);
+        const mesh = new THREE.Mesh(geo, [side, topM, topM]); mesh.position.y = h / 2;
+        mesh.castShadow = true; mesh.receiveShadow = true; sub.add(mesh);
+        own.push(geo, side, topM, tex);
+        topY = h; fh = clamp(0.12 + r * 1.6, 0.13, 0.24); mats = [side, topM];
+      } else {
+        const dh = clamp(c.dh / G.cw * 2 * R, 0.25, 1.1);
+        const dg = digitGeo(c.ch);
+        const tex = stripeTex(c.color); tex.repeat.set(2.6, 2.6);
+        const mat = new THREE.MeshPhysicalMaterial({ map: tex, roughness: 0.36, sheen: 0.5, sheenColor: new THREE.Color(0xffffff),
+          clearcoat: 0.35, clearcoatRoughness: 0.3, emissive: new THREE.Color(0xff8a3d), emissiveMap: sssTex, emissiveIntensity: 0 });
+        const mesh = new THREE.Mesh(dg.geo, mat); mesh.scale.setScalar(dh);
+        mesh.castShadow = true; mesh.receiveShadow = true; sub.add(mesh);
+        own.push(mat, tex);
+        topY = dg.top * dh; wx = dg.wickX * dh; fh = clamp(dh * 0.22, 0.14, 0.28); mats = [mat];
+      }
+      const wickH = Math.max(0.045, fh * 0.28);
+      const wg = new THREE.CylinderGeometry(0.0055, 0.0075, wickH, 6); own.push(wg);
+      const wick = new THREE.Mesh(wg, M.wick); wick.position.set(wx, topY + wickH / 2 - 0.006, 0); wick.rotation.z = 0.14; wick.castShadow = true; sub.add(wick);
+      const tip = new THREE.Vector3(wx - Math.sin(0.14) * wickH * 0.5, topY + wickH - 0.008, 0);
+      const fm = new THREE.ShaderMaterial({ uniforms: { uTime: { value: 0 }, uSeed: { value: c.phase }, uWind: { value: 0 }, uAlpha: { value: 1 }, uLean: { value: 0 } },
+        vertexShader: FV, fragmentShader: FF, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide });
+      const flame = new THREE.Mesh(flameGeo, fm); flame.position.copy(tip).add(new THREE.Vector3(0, -fh * 0.13, 0)); flame.renderOrder = 10; sub.add(flame);
+      const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: radialTex, color: 0xff9440, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0 }));
+      halo.position.copy(tip).add(new THREE.Vector3(0, fh * 0.32, 0)); halo.renderOrder = 11; sub.add(halo);
+      const ember = new THREE.Sprite(new THREE.SpriteMaterial({ map: radialTex, color: 0xff4a10, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0 }));
+      ember.position.copy(tip); ember.scale.setScalar(0.05); sub.add(ember);
+      own.push(fm, halo.material, ember.material);
+      const hg = new THREE.CylinderGeometry(Math.max(0.1, c.type === 'digit' ? 0.2 : 0.08), 0.06, topY + fh * 1.4, 8); own.push(hg);
+      const hit = new THREE.Mesh(hg, hitMat); hit.position.set(wx * 0.5, (topY + fh * 1.4) / 2, 0); hit.visible = false; hit.userData.c = c; sub.add(hit); hits.push(hit);
+      sub.updateMatrixWorld(true);
+      C3.push({ c, sub, flame, fm, halo, ember, mats, fh, tipW: sub.localToWorld(tip.clone()), prevLit: c.lit,
+        dispose() { own.forEach(o => o.dispose()); } });
+    }
+    builtVer = layoutVer;
+  }
+
+  // ---------- camera ----------
+  let yawDrag = 0, pitchDrag = 0, t3 = 0;
+  const target = new THREE.Vector3(0, 0.66, 0);
+  function placeCamera() {
+    const aspect = W / Math.max(1, H);
+    camera.aspect = aspect;
+    const tanV = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
+    const dist = Math.max(1.66 / (tanV * aspect), 1.25 / tanV);
+    const yaw = Math.sin(t3 * 0.11) * 0.06 + yawDrag, pitch = 0.4 + pitchDrag;
+    camera.position.set(Math.sin(yaw) * Math.cos(pitch) * dist, target.y + Math.sin(pitch) * dist, Math.cos(yaw) * Math.cos(pitch) * dist);
+    camera.lookAt(target);
+    const shift = aspect < 1 ? H * 0.1 : H * 0.04;          // leave room at the top for the message
+    camera.setViewOffset(W, H, 0, -shift, W, H);
+    camera.updateProjectionMatrix();
+  }
+
+  // ---------- quality ----------
+  const DPR0 = window.devicePixelRatio || 1;
+  let forcedQ = null; try { const qq = new URLSearchParams(location.search).get('q'); if (qq != null) forcedQ = clamp(+qq, 0, 2); } catch (e) {}
+  let q = forcedQ ?? 0, pr = 1, perfT = 0, perfSum = 0, perfN = 0, frameNo = 0;
+  function applyQuality() {
+    pr = [Math.min(DPR0, 1.75), Math.min(DPR0, 1.3), 1][q];
+    const ms = [1024, 512, 256][q];
+    if (main.shadow.mapSize.x !== ms) { main.shadow.mapSize.set(ms, ms); if (main.shadow.map) { main.shadow.map.dispose(); main.shadow.map = null; } }
+    resize3();
+  }
+  function resize3() {
+    renderer.setPixelRatio(pr); renderer.setSize(W, H, false);
+    composer.setPixelRatio(pr); composer.setSize(W, H);
+    const s = H * pr / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)));
+    smoke3.mat.uniforms.uScale.value = s; spark3.mat.uniforms.uScale.value = s;
+  }
+
+  // ---------- per frame ----------
+  const tmp = new THREE.Vector3();
+  function render3(dt) {
+    t3 += dt; frameNo++;
+    if (builtVer !== layoutVer) buildCandles3D();
+    placeCamera();
+    const wind = st.wind;
+    let tot = 0, px = 0, py = 0, pz = 0;
+    const strengths = [];
+    for (const b of C3) {
+      const c = b.c;
+      const e = c.ign < 1 ? 1 - Math.pow(1 - c.ign, 3) : 1;
+      const s = c.lit ? e * (0.45 + 0.55 * c.hp) : 0;
+      const flick = 0.8 + 0.2 * noise(t3 * 9 + c.phase * 2.1);
+      b.flame.visible = s > 0.02;
+      if (b.flame.visible) {
+        const n1 = noise(t3 * 7 + c.phase), n2 = noise(t3 * 11.3 + c.phase * 1.7);
+        const gust = Math.sin(t3 * 2.1 + c.phase) * 0.5 + (noise(t3 * 3 + c.phase) - 0.5) * 1.4 + c.bias;
+        b.fm.uniforms.uLean.value = (n1 - 0.5) * 0.12 * (1 + wind * 2) + wind * 0.7 * gust;
+        b.fm.uniforms.uTime.value = t3; b.fm.uniforms.uWind.value = wind;
+        const hs = s * (1 + (n2 - 0.5) * 0.12 * (1 + wind * 2) + Math.min(wind, 0.8) * 0.15 - Math.max(0, wind - 0.8) * 0.35);
+        b.flame.scale.set(b.fh * 0.46 * s * (1 - Math.min(wind, 1.2) * 0.15), b.fh * hs, 1);
+        b.flame.rotation.y = Math.atan2(camera.position.x - b.tipW.x, camera.position.z - b.tipW.z);
+      }
+      b.halo.material.opacity = s * 0.42 * flick;
+      b.halo.scale.setScalar(b.fh * (2.4 + 0.5 * flick));
+      b.ember.material.opacity = c.ember * 0.95; b.ember.scale.setScalar(0.03 + 0.035 * c.ember);
+      for (const m of b.mats) m.emissiveIntensity = s * 1.1 * flick;
+      // smoke / sparks on state changes
+      if (b.prevLit && !c.lit) for (let i = 0; i < 16; i++) emitSmoke(b.tipW, true, c.bias);
+      if (!b.prevLit && c.lit) for (let i = 0; i < 12; i++) spark3.list.push({ x: b.tipW.x, y: b.tipW.y, z: b.tipW.z, vx: rand(-0.4, 0.4), vy: rand(0.2, 0.9), vz: rand(-0.4, 0.4), life: 0, max: rand(0.25, 0.6) });
+      b.prevLit = c.lit;
+      if (c.smokeT > 0 && Math.random() < dt * 20 * (c.smokeT / 2.4)) emitSmoke(b.tipW, false, c.bias);
+      const k = s * flick;
+      strengths.push(k);
+      tot += k; px += b.tipW.x * k; py += (b.tipW.y + b.fh * 0.35) * k; pz += b.tipW.z * k;
+    }
+    // lights follow the flames
+    const LI = 1.5;
+    if (tot > 0.001) { main.position.set(px / tot, py / tot, pz / tot); main.intensity = LI * Math.pow(tot, 0.85) * 0.6; }
+    else main.intensity = 0;
+    const order = C3.map((b, i) => i).sort((i, j) => C3[i].tipW.x - C3[j].tipW.x);
+    const per = Math.max(1, Math.ceil(order.length / fills.length));
+    fills.forEach((l, gi) => {
+      let s = 0, x = 0, y = 0, z = 0;
+      for (const i of order.slice(gi * per, gi * per + per)) { const k = strengths[i], b = C3[i]; s += k; x += b.tipW.x * k; y += (b.tipW.y + b.fh * 0.35) * k; z += b.tipW.z * k; }
+      if (s > 0.001) { l.position.set(x / s, y / s, z / s); l.intensity = LI * Math.pow(s, 0.85) * 0.4; } else l.intensity = 0;
+    });
+    const amb = st.ambient;
+    const roomTarget = st.celebrated ? 0.75 : 0.28;          // room light comes up after the wish
+    hemi.intensity += (roomTarget - hemi.intensity) * Math.min(1, dt * 0.8);
+    for (const sp of bokeh3) sp.material.opacity = sp.userData.base * (0.35 + 0.65 * amb) * (0.8 + 0.2 * Math.sin(t3 * 0.7 + sp.userData.ph));
+    // particles
+    for (let i = smoke3.list.length - 1; i >= 0; i--) {
+      const p = smoke3.list[i]; p.life += dt;
+      if (p.life > p.max) { smoke3.list.splice(i, 1); continue; }
+      p.vx *= 1 - dt * 0.7; p.vz *= 1 - dt * 0.7; p.vy *= 1 - dt * 0.25;
+      p.x += (p.vx + Math.sin(p.life * 2.6 + p.seed) * 0.03 + wind * 0.05 * Math.sin(t3 * 1.3)) * dt;
+      p.z += (p.vz + Math.cos(p.life * 2.1 + p.seed) * 0.02) * dt;
+      p.y += p.vy * dt; p.s += p.g * dt;
+    }
+    flushPoints(smoke3, p => [p.s, p.a * (1 - p.life / p.max) * Math.min(1, p.life * 5)]);
+    for (let i = spark3.list.length - 1; i >= 0; i--) {
+      const p = spark3.list[i]; p.life += dt;
+      if (p.life > p.max) { spark3.list.splice(i, 1); continue; }
+      p.vy -= 2.2 * dt; p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt;
+    }
+    flushPoints(spark3, p => [0.012, 1 - p.life / p.max]);
+    // adaptive quality: step down if the phone can't keep up
+    if (forcedQ == null && q < 2) {
+      perfT += dt;
+      if (perfT > 1.5) { perfSum += dt; perfN++; }
+      if (perfT > 4.5) {
+        if (perfSum / perfN > 0.026) { q++; applyQuality(); }
+        perfT = 0; perfSum = 0; perfN = 0;
+      }
+    }
+    renderer.shadowMap.needsUpdate = frameNo % [1, 2, 3][q] === 0 || frameNo < 3;
+    if (q < 2) composer.render(); else renderer.render(scene, camera);
+  }
+
+  const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
+  applyQuality();
+  return {
+    render: render3,
+    resize: resize3,
+    show(on) { canvas3.hidden = !on; },
+    pick(x, y) {
+      placeCamera();
+      ndc.set(x / W * 2 - 1, -(y / H) * 2 + 1);
+      ray.setFromCamera(ndc, camera);
+      const hit = ray.intersectObjects(hits, false)[0];
+      return hit ? hit.object.userData.c : null;
+    },
+    drag(dx, dy, d) {
+      if (d.yaw0 == null) { d.yaw0 = yawDrag; d.pitch0 = pitchDrag; }
+      yawDrag = clamp(d.yaw0 - dx * 0.006, -0.8, 0.8);
+      pitchDrag = clamp(d.pitch0 + dy * 0.004, -0.22, 0.4);
+    },
+    project(i) {
+      const b = C3[i]; if (!b) return null;
+      tmp.copy(b.tipW); tmp.y += b.fh * 0.4; tmp.project(camera);
+      return { x: (tmp.x + 1) / 2 * W, y: (1 - tmp.y) / 2 * H };
+    },
+    info() { return { q, pr, lights: main.intensity.toFixed(2), calls: renderer.info.render.calls, tris: renderer.info.render.triangles }; }
+  };
+}
 
 genStatic();
 resize();
@@ -1218,6 +1849,8 @@ cands.forEach(c => { c.pending = false; c.lit = true; c.ign = 1; });
 syncForm();
 updateMicUI();
 requestAnimationFrame(frame);
+updateRenderBtn();
+if (S.render === '3d') ensure3D();
 })();
 </script>
 </body>
