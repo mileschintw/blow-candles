@@ -218,6 +218,7 @@
     <div class="scale"><span data-t="moreSens">← 更敏感</span><span data-t="harder">需要更用力 →</span></div>
     <p class="tip" data-t="tip">彩色條是「比周圍環境大聲多少」。吹氣讓它超過白線，蠟燭就會熄滅；淡灰線是最近環境噪音的高點，白線要放在它右邊。說話聲會被自動過濾。</p>
     <button id="btnCalib" class="calib-btn" data-t="calibBtn">🎯 自動校準（建議先做一次）</button>
+    <p class="tip" id="micProc" hidden></p>
   </div>
   <div class="field">
     <label data-t="msgLabel">吹熄後的祝福文字</label>
@@ -297,6 +298,8 @@ const STR = {
     micFramed: '這個頁面嵌在別的網站裡（例如 claude.ai），那裡不允許使用麥克風。要用吹氣，請在自己的 HTTPS 網址開啟這個檔案。',
     micDenied: '麥克風權限被拒絕了。請到瀏覽器的網站設定允許麥克風後重新整理。', micNone: '找不到麥克風裝置。',
     micTapMode: ' 你也可以先用「點蠟燭吹熄」模式。',
+    procLabel: '麥克風音訊處理：', procSep: '・', procOff: '已關閉', procOn: '開著（瀏覽器不允許關閉）',
+    proc_echoCancellation: '回音消除', proc_noiseSuppression: '降噪', proc_autoGainControl: '自動增益', proc_voiceIsolation: '人聲隔離',
   },
   en: {
     appName: 'Blow the Candles', relight: '🔥 Relight', relightAria: 'Relight all candles', renderAria: 'Switch between 2D and 3D', settings: 'Settings',
@@ -324,6 +327,8 @@ const STR = {
     micFramed: 'This page is embedded in another site (such as claude.ai), which blocks the microphone. To blow, open the file from your own HTTPS address.',
     micDenied: 'Microphone permission was denied. Allow it in the browser\'s site settings, then reload.', micNone: 'No microphone was found.',
     micTapMode: ' You can still use tap mode for now.',
+    procLabel: 'Microphone processing: ', procSep: ' · ', procOff: 'off', procOn: 'on (the browser keeps it on)',
+    proc_echoCancellation: 'echo cancellation', proc_noiseSuppression: 'noise suppression', proc_autoGainControl: 'auto gain', proc_voiceIsolation: 'voice isolation',
   },
 };
 const DEFAULT_MSGS = [STR.zh.defMsg, STR.en.defMsg];
@@ -540,13 +545,35 @@ let analyser = null, fbuf = null, tbuf = null, dec = null, micStream = null, mic
 let forcedLevel = null; // debug hook
 const det = { floor: null, lowDb: -120, excess: 0, eff: 0, voice: 0, dose: 0, ambPeak: 0, quietUntil: 0, calib: null };
 const DB_SCALE = 2.5;   // meter units per dB (0–100 = 0–40 dB above the room's noise)
+// Phones and browsers tune the microphone for calls: echo cancellation, noise suppression, automatic gain and voice
+// isolation all treat a steady blow as noise and can remove it before the page hears anything. Ask for the raw signal,
+// strictly first and politely if the browser refuses, then check what it actually gave and retry on the live track.
+const MIC_PROC = ['echoCancellation', 'noiseSuppression', 'autoGainControl', 'voiceIsolation'];
+const LEGACY_OFF = { googEchoCancellation: false, googExperimentalEchoCancellation: false, googNoiseSuppression: false,
+  googExperimentalNoiseSuppression: false, googAutoGainControl: false, googExperimentalAutoGainControl: false,
+  googHighpassFilter: false, googTypingNoiseDetection: false, googAudioMirroring: false };   // older Chrome / WebView names
+let micProc = null;     // what the browser reports after asking, e.g. { echoCancellation: false, noiseSuppression: false }
+async function openRawMic() {
+  const md = navigator.mediaDevices, sup = md.getSupportedConstraints ? md.getSupportedConstraints() : {};
+  const keys = MIC_PROC.filter(k => sup[k] || k !== 'voiceIsolation'), strict = {}, soft = {};
+  for (const k of keys) { strict[k] = { exact: false }; soft[k] = false; }
+  let stream;
+  try { stream = await md.getUserMedia({ audio: { ...strict, ...LEGACY_OFF } }); }
+  catch (e) {
+    if (e.name !== 'OverconstrainedError' && e.name !== 'TypeError') throw e;   // permission errors go to the caller as before
+    stream = await md.getUserMedia({ audio: { ...soft, ...LEGACY_OFF } });
+  }
+  const track = stream.getAudioTracks()[0], read = () => (track.getSettings ? track.getSettings() : {});
+  if (keys.some(k => read()[k] === true) && track.applyConstraints) await track.applyConstraints({ ...soft, ...LEGACY_OFF }).catch(() => {});
+  const got = read(); micProc = {};
+  for (const k of MIC_PROC) if (typeof got[k] === 'boolean') micProc[k] = got[k];
+  return stream;
+}
 async function startMic() {
   if (!window.isSecureContext || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
     throw new Error('insecure');
   }
-  micStream = await navigator.mediaDevices.getUserMedia({
-    audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
-  });
+  micStream = await openRawMic();
   const src = AC.createMediaStreamSource(micStream);
   analyser = AC.createAnalyser();
   analyser.fftSize = 2048;
@@ -1503,6 +1530,10 @@ function updateMarks() {
 function updateMicUI() {
   $('micIc').textContent = micOk ? '🎤' : '👆';
   $('hint').textContent = !micOk ? tr('hintTap') : S.calibrated ? tr('hintBlow') : tr('hintBlow') + tr('hintCal');
+  // settings: which of the phone's call processing is really off (only what the browser reports)
+  const rep = micOk && micProc ? Object.keys(micProc) : [];
+  $('micProc').hidden = !rep.length;
+  if (rep.length) $('micProc').textContent = tr('procLabel') + rep.map(k => tr('proc_' + k) + ' ' + (micProc[k] ? tr('procOn') : tr('procOff'))).join(tr('procSep'));
 }
 function syncForm() {
   document.querySelectorAll('#modeSeg button').forEach(b => b.classList.toggle('on', b.dataset.mode === S.mode));
@@ -1742,7 +1773,7 @@ window.candleDebug = {
     return { lit: cands.filter(c => c.lit).length, pending: cands.filter(c => c.pending).length, total: cands.length,
       level: Math.round(st.level), threshold: S.threshold, calibrating: !!det.calib, calibrated: S.calibrated,
       dbg: `ex${det.excess.toFixed(0)} v${det.voice.toFixed(2)} d${det.dose.toFixed(2)}`, mic: micOk, celebrated: st.celebrated,
-      celebrateVisible: !celebrateEl.classList.contains('hidden'), warm: +st.warm.toFixed(3),
+      celebrateVisible: !celebrateEl.classList.contains('hidden'), warm: +st.warm.toFixed(3), micProc,
       boxes: cands.map(c => ({ x: Math.round(c.x), y: Math.round(c.y), wickX: Math.round(c.wickX), wickY: Math.round(c.wickY) })) };
   },
   calibrate: startCalib,
