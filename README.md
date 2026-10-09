@@ -6,7 +6,7 @@ A birthday cake for your phone's browser: blow at the microphone and the candles
 
 **Live demo:** https://blow-candles.netlify.app/
 
-The whole app is a single [`index.html`](index.html) with no build step.
+The app itself is a single [`index.html`](index.html) with no build step. [`manifest.webmanifest`](manifest.webmanifest), [`sw.js`](sw.js), `icons/` and `screenshots/` make it installable.
 
 ## Features
 
@@ -32,6 +32,9 @@ The whole app is a single [`index.html`](index.html) with no build step.
 - **Sound:**
   - A breathy puff with a fading smoke hiss, and a match strike when relighting.
   - All sound is synthesized live in the browser, with no audio files.
+- **Installable:** it can be installed like an app and opens full-screen from the home screen, even offline.
+  - Chrome, Edge and Samsung Internet offer it themselves: an install icon in the address bar, or a banner on Android. An Install button also appears on the start screen and in Settings.
+  - iPhone and iPad have no install prompt, so the start screen and Settings explain how: tap Share, then Add to Home Screen.
 - **English and Traditional Chinese:** browsers set to Traditional Chinese (zh-TW, zh-HK, zh-MO, zh-Hant) get Chinese; everyone else gets English. Settings has an override.
 - **URL parameters:**
   - `?num=25`: number candles showing 25
@@ -55,6 +58,8 @@ python -m http.server 8765
 ```
 
 Then open http://localhost:8765/.
+
+To host it, upload the whole folder: the install support needs `manifest.webmanifest`, `sw.js`, `icons/` and `screenshots/` next to `index.html`. After changing the list of app files, bump `VERSION` in `sw.js`.
 
 The 3D view loads three.js 0.160 from jsDelivr. It needs a network connection and a browser with import map support (iOS Safari 16.4 or later).
 

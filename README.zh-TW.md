@@ -6,7 +6,7 @@
 
 **線上試玩：** https://blow-candles.netlify.app/
 
-整個 app 是單一個 [`index.html`](index.html)，不需要建置步驟。
+app 本身是單一個 [`index.html`](index.html)，不需要建置步驟；[`manifest.webmanifest`](manifest.webmanifest)、[`sw.js`](sw.js)、`icons/` 和 `screenshots/` 讓它可以安裝成 app。
 
 ## 功能
 
@@ -30,6 +30,9 @@
 - **吹熄門檻**：預設 75，可以在設定裡拖曳門檻線，調整吹熄的難易度。
 - **自動校準（需要時再用）**：吹不熄的話，先安靜 2 秒、再吹 3 秒，就會自動設定門檻。
 - **音效**：吹熄的氣音與煙霧聲、點火聲；全部在瀏覽器即時合成，不用音檔。
+- **可以安裝成 app**：安裝後從主畫面開啟是全螢幕，沒有網路也能開。
+  - Chrome、Edge、Samsung Internet 會自己提示安裝：網址列出現安裝圖示，Android 會跳出橫幅。開始畫面和設定裡也會出現「安裝到主畫面」按鈕。
+  - iPhone、iPad 沒有安裝提示，開始畫面和設定裡會說明做法：點「分享」，再選「加入主畫面」。
 - **中英文介面**：瀏覽器語言是繁體中文（zh-TW、zh-HK、zh-MO、zh-Hant）時顯示中文，其他一律顯示英文；設定裡可以手動指定。
 - **網址參數**：
   - `?num=25`：數字蠟燭，顯示 25
@@ -53,6 +56,8 @@ python -m http.server 8765
 ```
 
 然後開啟 http://localhost:8765/ 。
+
+部署時請上傳整個資料夾：安裝功能需要 `manifest.webmanifest`、`sw.js`、`icons/`、`screenshots/` 和 `index.html` 放在一起。更動 app 檔案清單後，記得把 `sw.js` 裡的 `VERSION` 加一。
 
 3D 版本會從 jsDelivr 載入 three.js 0.160，需要網路連線與支援 import maps 的瀏覽器（iOS Safari 16.4 以上）。
 
