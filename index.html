@@ -9,6 +9,9 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>吹蠟燭</title>
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%95%AF%EF%B8%8F%3C/text%3E%3C/svg%3E">
 <style>
   :root{
@@ -140,6 +143,10 @@
   input[type=range]{width:100%;height:36px;margin:6px 0 0;accent-color:var(--accent);background:transparent}
   .scale{display:flex;justify-content:space-between;font-size:12px;color:var(--muted)}
   .tip{margin:10px 0 0;font-size:13px;color:var(--muted);line-height:1.6}
+  .install-btn{font-size:15px}
+  .install-ios{text-align:center}
+  #fInstall .install-btn{margin-top:4px}
+  #fInstall .install-ios{text-align:left;margin-top:4px}
   .switch{appearance:none;-webkit-appearance:none;width:52px;height:32px;border-radius:99px;background:rgba(255,255,255,.18);
     position:relative;transition:background .2s;flex:none;margin:0}
   .switch::after{content:"";position:absolute;top:3px;left:3px;width:26px;height:26px;border-radius:50%;background:#fff;
@@ -226,6 +233,11 @@
   </div>
   <div class="field row"><label for="sfxToggle" data-t="sfx">音效</label><input type="checkbox" id="sfxToggle" class="switch"></div>
   <div class="field row"><label for="songToggle" data-t="song">全部吹熄後播放生日快樂歌</label><input type="checkbox" id="songToggle" class="switch"></div>
+  <div class="field" id="fInstall" hidden>
+    <label data-t="installLabel">安裝 App</label>
+    <button class="ghost install-btn" data-install hidden data-t="install">📲 安裝到主畫面</button>
+    <p class="tip install-ios" data-install-ios hidden data-t="installIos"></p>
+  </div>
   <div class="field">
     <label data-t="lang">語言／Language</label>
     <div class="seg" id="langSeg">
@@ -258,6 +270,8 @@
       <div class="seg" id="startRender"><button data-r="3d" data-t="v3d">3D 立體</button><button data-r="2d" data-t="v2d">2D 平面</button></div></div>
     <button id="btnStart" class="primary" data-t="start">開始 🎂</button>
     <button id="btnNoMic" class="ghost" data-t="noMic">不使用麥克風（點蠟燭吹熄）</button>
+    <button class="ghost install-btn" data-install hidden data-t="install">📲 安裝到主畫面</button>
+    <p class="tip install-ios" data-install-ios hidden data-t="installIos"></p>
     <p class="err" id="startErr"></p>
   </div>
 </div>
@@ -298,6 +312,8 @@ const STR = {
     micFramed: '這個頁面嵌在別的網站裡（例如 claude.ai），那裡不允許使用麥克風。要用吹氣，請在自己的 HTTPS 網址開啟這個檔案。',
     micDenied: '麥克風權限被拒絕了。請到瀏覽器的網站設定允許麥克風後重新整理。', micNone: '找不到麥克風裝置。',
     micTapMode: ' 你也可以先用「點蠟燭吹熄」模式。',
+    install: '📲 安裝到主畫面', installLabel: '安裝 App',
+    installIos: '想像 App 一樣使用？點瀏覽器的「分享」按鈕 ⬆️，再選「加入主畫面」。',
     procLabel: '麥克風音訊處理：', procSep: '・', procOff: '已關閉', procOn: '開著（瀏覽器不允許關閉）',
     proc_echoCancellation: '回音消除', proc_noiseSuppression: '降噪', proc_autoGainControl: '自動增益', proc_voiceIsolation: '人聲隔離',
   },
@@ -327,6 +343,8 @@ const STR = {
     micFramed: 'This page is embedded in another site (such as claude.ai), which blocks the microphone. To blow, open the file from your own HTTPS address.',
     micDenied: 'Microphone permission was denied. Allow it in the browser\'s site settings, then reload.', micNone: 'No microphone was found.',
     micTapMode: ' You can still use tap mode for now.',
+    install: '📲 Install the app', installLabel: 'Install the app',
+    installIos: 'To use it like an app, tap the browser\u2019s Share button ⬆️, then Add to Home Screen.',
     procLabel: 'Microphone processing: ', procSep: ' · ', procOff: 'off', procOn: 'on (the browser keeps it on)',
     proc_echoCancellation: 'echo cancellation', proc_noiseSuppression: 'noise suppression', proc_autoGainControl: 'auto gain', proc_voiceIsolation: 'voice isolation',
   },
@@ -2666,6 +2684,35 @@ buildCandles(false);
 cands.forEach(c => { c.pending = false; c.lit = true; c.ign = 1; });
 syncForm();
 updateMicUI();
+/* ---------------- install as an app ----------------
+   Chrome, Edge and Samsung Internet decide on their own when to offer installing (an install icon in the address
+   bar, or a banner on Android) once the manifest and service worker are in place; when they hand us the prompt we
+   also show an Install button that opens it. iPhone and iPad have no install prompt at all, so they get a line
+   explaining Share > Add to Home Screen. Nothing shows once the app is already running installed. */
+const standalone = () => matchMedia('(display-mode: standalone)').matches || matchMedia('(display-mode: fullscreen)').matches || navigator.standalone === true;
+const isIOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+let topLevel = true; try { topLevel = window.top === window.self; } catch (e) { topLevel = false; }   // inside another site's frame, installing would add that site
+let installEvt = null;
+function updateInstallUI() {
+  const canPrompt = !!installEvt && !standalone(), ios = isIOS && topLevel && !standalone();
+  document.querySelectorAll('[data-install]').forEach(b => { b.hidden = !canPrompt; });
+  document.querySelectorAll('[data-install-ios]').forEach(p => { p.hidden = !ios || canPrompt; });
+  $('fInstall').hidden = !canPrompt && !ios;
+}
+addEventListener('beforeinstallprompt', e => { installEvt = e; updateInstallUI(); });   // not prevented: the browser may still show its own banner
+addEventListener('appinstalled', () => { installEvt = null; updateInstallUI(); });
+document.querySelectorAll('[data-install]').forEach(b => b.addEventListener('click', async () => {
+  if (!installEvt) return;
+  const e = installEvt; installEvt = null;
+  try { await e.prompt(); await e.userChoice; } catch (err) {}
+  updateInstallUI();
+}));
+updateInstallUI();
+// the service worker makes the app installable and lets it open offline; skipped inside other sites' frames
+if ('serviceWorker' in navigator && window.isSecureContext && topLevel) {
+  addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+}
+
 requestAnimationFrame(frame);
 updateRenderBtn();
 if (S.render === '3d') ensure3D();
