@@ -17,7 +17,7 @@
     { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
   ],
   "screenshots": [
-    { "src": "screenshots/lit.jpg", "sizes": "780x1688", "type": "image/jpeg", "form_factor": "narrow", "label": "點亮的生日蛋糕 Candles lit" },
-    { "src": "screenshots/party.jpg", "sizes": "780x1688", "type": "image/jpeg", "form_factor": "narrow", "label": "吹熄後的慶祝 The celebration" }
+    { "src": "screenshots/lit.jpg", "sizes": "780x1688", "type": "image/jpeg", "form_factor": "narrow", "label": "中文版：點亮的生日蛋糕" },
+    { "src": "screenshots/party-en.jpg", "sizes": "780x1688", "type": "image/jpeg", "form_factor": "narrow", "label": "English version: the celebration" }
   ]
 }
