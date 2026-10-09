@@ -2075,7 +2075,7 @@ function create3D(THREE) {
   const CONF3 = ['#ff4d6d', '#ffd23f', '#3bceac', '#4d96ff', '#c77dff', '#ff8c42', '#fafafa', '#7ae582'];
   const FOIL3 = ['#ffd27a', '#e8e8f0', '#ff9ec4', '#9fd8ff'];
   const pieces = [];
-  const STRN = 12, NODES = 22;
+  const STRN = 12, NODES = 30;
   const strPos = new Float32Array(STRN * NODES * 2 * 3), strNor = new Float32Array(strPos.length), strCol = new Float32Array(strPos.length);
   const strIdx = [];
   for (let s = 0; s < STRN; s++) for (let i = 0; i < NODES - 1; i++) {
@@ -2086,7 +2086,11 @@ function create3D(THREE) {
   strGeo.setAttribute('normal', new THREE.BufferAttribute(strNor, 3));
   strGeo.setAttribute('color', new THREE.BufferAttribute(strCol, 3));
   strGeo.setIndex(strIdx);
-  const strMesh = new THREE.Mesh(strGeo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.5, side: THREE.DoubleSide }));
+  const strMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.5, side: THREE.DoubleSide });
+  strMat.onBeforeCompile = sh => {      // a little of the paper's own colour shows even in the dark, so the ribbons read against the room
+    sh.fragmentShader = sh.fragmentShader.replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n  totalEmissiveRadiance += vColor.rgb * 0.3;');
+  };
+  const strMesh = new THREE.Mesh(strGeo, strMat);
   strMesh.frustumCulled = false; strMesh.visible = false; scene.add(strMesh);
   const strands = [];
   const surfaceY = (x, z) => {                   // what a falling piece lands on: cake top, plate, table
@@ -2114,10 +2118,16 @@ function create3D(THREE) {
         pieces.push(p);
       }
       for (let k = 0; k < STRN / 2; k++) {
-        const v = new THREE.Vector3(-side * rand(0.3, 0.6), rand(2.0, 2.6), rand(-0.9, -0.4)).normalize().multiplyScalar(rand(6.5, 8.5));
-        const s = { pos: new Float32Array(NODES * 3), old: new Float32Array(NODES * 3), seg: rand(0.045, 0.065), tw: rand(0, 6), v, fresh: true, age: 0, still: 0, settled: false,
+        // long ribbons shot high over the cake; they leave the popper already unrolled along the launch line
+        const v = new THREE.Vector3(-side * rand(0.7, 1.3), rand(2.4, 3.0), rand(-1.3, -0.5)).normalize().multiplyScalar(rand(8, 9.5));
+        const s = { pos: new Float32Array(NODES * 3), old: new Float32Array(NODES * 3), seg: rand(0.05, 0.065), tw: rand(0, 6), v, fresh: true, age: 0, still: 0, settled: false,
+          drift: new THREE.Vector3(-side * rand(0.1, 0.45), 0, rand(-0.35, 0.35)), pin: new Uint8Array(NODES),
           col: new THREE.Color(CONF3[(k * 3 + (side > 0 ? 1 : 0)) % CONF3.length]) };
-        for (let i = 0; i < NODES; i++) { s.pos.set([origin.x, origin.y, origin.z], i * 3); s.old.set([origin.x, origin.y, origin.z], i * 3); }
+        const u = v.clone().normalize();
+        for (let i = 0; i < NODES; i++) {
+          const x = origin.x - u.x * s.seg * i, y = origin.y - u.y * s.seg * i, z = origin.z - u.z * s.seg * i;
+          s.pos.set([x, y, z], i * 3); s.old.set([x, y, z], i * 3);
+        }
         strands.push(s);
       }
     }
@@ -2172,31 +2182,48 @@ function create3D(THREE) {
       paper.instanceMatrix.needsUpdate = true; foil.instanceMatrix.needsUpdate = true;
     }
     // streamers: verlet chains of paper ribbon; a strand that has come to rest stops simulating
-    const damp = Math.exp(-1.3 * dt), gdt = g * 1.2 * dt * dt;
+    const gdt = g * 0.55 * dt * dt;   // paper ribbon: lots of drag, slow fall
     let strandsChanged = confDirty;
     for (let si = strands.length - 1; si >= 0; si--) {
       const s = strands[si];
       if (s.settled) continue;
       strandsChanged = true;
       s.age += dt;
-      const P = s.pos, O = s.old;
+      const P = s.pos, O = s.old, pin = s.pin;
       for (let i = 0; i < NODES; i++) {
+        if (pin[i]) continue;
         const j = i * 3;
-        let vx = (P[j] - O[j]) * damp, vy = (P[j + 1] - O[j + 1]) * damp, vz = (P[j + 2] - O[j + 2]) * damp;
-        if (s.fresh) { const f = 1 - i * 0.012; vx = s.v.x * dt * f; vy = s.v.y * dt * f; vz = s.v.z * dt * f; }   // the whole ribbon is ejected, tail a bit slower
+        // the leading end catches less air, so the ribbon falls stretched out behind it instead of folding up;
+        // the air also carries it sideways a little, so it lays down along a line rather than in a heap
+        const k = 1 - Math.exp(-(1.8 + 1.2 * i / (NODES - 1)) * dt);
+        let vx = P[j] - O[j], vy = P[j + 1] - O[j + 1], vz = P[j + 2] - O[j + 2];
+        const air = P[j + 1] > surfaceY(P[j], P[j + 2]) + 0.03 ? dt : 0;
+        vx += (s.drift.x * air - vx) * k; vy -= vy * k; vz += (s.drift.z * air - vz) * k;
+        if (s.fresh) {      // the whole ribbon is ejected together, with a wave along it so it curls instead of flying like a stick
+          const w = Math.sin(i * 0.45 + s.tw) * 1.1, w2 = Math.cos(i * 0.3 + s.tw * 1.7) * 0.6;
+          vx = (s.v.x + s.v.z * w * 0.15 + w2 * 0.3) * dt; vy = (s.v.y + w2) * dt; vz = (s.v.z - s.v.x * w * 0.15 + w * 0.6) * dt;
+        }
         O[j] = P[j]; O[j + 1] = P[j + 1]; O[j + 2] = P[j + 2];
-        const flutter = P[j + 1] > surfaceY(P[j], P[j + 2]) + 0.02 ? Math.sin(t3 * 4 + i * 0.6 + s.tw) * 0.0015 : 0;   // only in the air
-        P[j] += vx + flutter; P[j + 1] += vy - gdt; P[j + 2] += vz;
+        P[j] += vx; P[j + 1] += vy - gdt; P[j + 2] += vz;
         const sy = surfaceY(P[j], P[j + 2]);
-        // touching down: friction stops it sliding
-        if (P[j + 1] < sy && P[j + 1] > sy - 0.1) { P[j + 1] = sy; O[j] = P[j] - vx * 0.15; O[j + 2] = P[j + 2] - vz * 0.15; O[j + 1] = P[j + 1]; }
-        else if (P[j + 1] < 0.004) { P[j + 1] = 0.004; O[j] = P[j] - vx * 0.15; O[j + 2] = P[j + 2] - vz * 0.15; O[j + 1] = P[j + 1]; }
+        // touching down from above: friction stops it sliding (a piece hanging over the cake's edge is left to hang)
+        if (s.age < 0.4) continue;      // the unrolled tail starts below the table; let it come out first
+        let down = -1;
+        if (P[j + 1] < sy && O[j + 1] >= sy - 0.004) down = sy;
+        else if (P[j + 1] < 0.004) down = 0.004;
+        if (down >= 0) {
+          P[j + 1] = down; O[j] = P[j] - vx * 0.15; O[j + 2] = P[j + 2] - vz * 0.15; O[j + 1] = P[j + 1];
+          if (Math.abs(vx) + Math.abs(vz) < 0.004) { pin[i] = 1; O[j] = P[j]; O[j + 2] = P[j + 2]; }   // stuck where it lies
+        }
       }
       s.fresh = false;
       for (let it = 0; it < 4; it++) for (let i = 1; i < NODES; i++) {
         const a = (i - 1) * 3, b = i * 3;
-        const dx = P[b] - P[a], dy = P[b + 1] - P[a + 1], dz = P[b + 2] - P[a + 2], d = Math.hypot(dx, dy, dz) || 1e-6, f = (d - s.seg) / d * 0.5;
-        P[a] += dx * f; P[a + 1] += dy * f; P[a + 2] += dz * f; P[b] -= dx * f; P[b + 1] -= dy * f; P[b + 2] -= dz * f;
+        const pa = pin[i - 1], pb = pin[i];
+        if (pa && pb) continue;
+        const dx = P[b] - P[a], dy = P[b + 1] - P[a + 1], dz = P[b + 2] - P[a + 2], d = Math.hypot(dx, dy, dz) || 1e-6, f = (d - s.seg) / d;
+        const fa = pb ? f : pa ? 0 : f * 0.5, fb = pa ? f : pb ? 0 : f * 0.5;
+        P[a] += dx * fa; P[a + 1] += dy * fa; P[a + 2] += dz * fa; P[b] -= dx * fb; P[b + 1] -= dy * fb; P[b + 2] -= dz * fb;
       }
       let maxMove = 0, out = s.age > 0.8;
       for (let i = 0; i < NODES; i++) {
@@ -2218,9 +2245,9 @@ function create3D(THREE) {
           tA.set(P[b] - P[a], P[b + 1] - P[a + 1], P[b + 2] - P[a + 2]).normalize();
           side.crossVectors(tA, up); if (side.lengthSq() < 1e-6) side.set(1, 0, 0); side.normalize();
           nrm.crossVectors(side, tA);
-          const tw = s.tw + i * 0.85, c = Math.cos(tw), sn = Math.sin(tw);
+          const tw = s.tw + i * 0.35, c = Math.cos(tw), sn = Math.sin(tw);
           const sxv = side.x * c + nrm.x * sn, syv = side.y * c + nrm.y * sn, szv = side.z * c + nrm.z * sn;
-          const hw = 0.012, o = ((si * NODES) + i) * 6, j = i * 3;
+          const hw = 0.028, o = ((si * NODES) + i) * 6, j = i * 3;
           strPos[o] = P[j] + sxv * hw; strPos[o + 1] = P[j + 1] + syv * hw; strPos[o + 2] = P[j + 2] + szv * hw;
           strPos[o + 3] = P[j] - sxv * hw; strPos[o + 4] = P[j + 1] - syv * hw; strPos[o + 5] = P[j + 2] - szv * hw;
           const nx = nrm.x * c - side.x * sn, ny = nrm.y * c - side.y * sn, nz = nrm.z * c - side.z * sn;
