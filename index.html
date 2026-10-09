@@ -2204,7 +2204,7 @@ function create3D(THREE) {
   const CONF3 = ['#ff4d6d', '#ffd23f', '#3bceac', '#4d96ff', '#c77dff', '#ff8c42', '#fafafa', '#7ae582'];
   const FOIL3 = ['#ffd27a', '#e8e8f0', '#ff9ec4', '#9fd8ff'];
   const pieces = [];
-  const STRN = 14, NODES = 30;
+  const STRN = 16, NODES = 30;
   const strPos = new Float32Array(STRN * NODES * 2 * 3), strNor = new Float32Array(strPos.length), strCol = new Float32Array(strPos.length);
   const strIdx = [];
   for (let s = 0; s < STRN; s++) for (let i = 0; i < NODES - 1; i++) {
@@ -2376,7 +2376,7 @@ function create3D(THREE) {
           nrm.crossVectors(side, tA);
           const tw = s.tw + i * 0.35, c = Math.cos(tw), sn = Math.sin(tw);
           const sxv = side.x * c + nrm.x * sn, syv = side.y * c + nrm.y * sn, szv = side.z * c + nrm.z * sn;
-          const hw = 0.024, o = ((si * NODES) + i) * 6, j = i * 3;
+          const hw = 0.0216, o = ((si * NODES) + i) * 6, j = i * 3;
           strPos[o] = P[j] + sxv * hw; strPos[o + 1] = P[j + 1] + syv * hw; strPos[o + 2] = P[j + 2] + szv * hw;
           strPos[o + 3] = P[j] - sxv * hw; strPos[o + 4] = P[j + 1] - syv * hw; strPos[o + 5] = P[j + 2] - szv * hw;
           const nx = nrm.x * c - side.x * sn, ny = nrm.y * c - side.y * sn, nz = nrm.z * c - side.z * sn;
