@@ -27,7 +27,7 @@ node calibration.js
 3D 畫面截圖、點擊與吹熄：
 
 ```bash
-node render-3d.js "?count=5&q=0" shot quiet tap,blow
+node render-3d.js "?count=5&q=0&r=3d" shot quiet tap,blow
 ```
 
 Chrome 位置可用 `CHROME` 環境變數指定（預設為 Windows 的安裝路徑）。

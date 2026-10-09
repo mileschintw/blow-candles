@@ -247,7 +247,7 @@ const rand = (a, b) => a + Math.random() * (b - a);
 
 /* ---------------- settings ---------------- */
 const KEY = 'blow-candle-v2';
-const DEFAULTS = { mode: 'single', count: 5, number: '18', threshold: 40, msg: '生日快樂！', sfx: true, song: true, calibrated: false, render: '3d' };
+const DEFAULTS = { mode: 'single', count: 5, number: '18', threshold: 40, msg: '生日快樂！', sfx: true, song: true, calibrated: false, render: '2d' };
 const S = Object.assign({}, DEFAULTS);
 try {
   const raw = localStorage.getItem(KEY);
@@ -257,6 +257,8 @@ try {
     if (old) { delete old.threshold; Object.assign(S, old); }
   }
 } catch (e) {}
+// 2D/3D is remembered only once the viewer picks it with the toggle (older saves always held '3d')
+try { S.render = localStorage.getItem('blow-candle-render') || DEFAULTS.render; } catch (e) { S.render = DEFAULTS.render; }
 // URL overrides, e.g. ?num=25 or ?count=3
 try {
   const q = new URLSearchParams(location.search);
@@ -272,7 +274,7 @@ function sanitize() {
   S.threshold = clamp(Math.round(+S.threshold) || 40, 5, 95);
   S.msg = String(S.msg == null ? DEFAULTS.msg : S.msg).slice(0, 24);
   S.sfx = !!S.sfx; S.song = !!S.song; S.calibrated = !!S.calibrated;
-  S.render = S.render === '2d' ? '2d' : '3d';
+  S.render = S.render === '3d' ? '3d' : '2d';
 }
 sanitize();
 function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} }
@@ -1221,11 +1223,11 @@ function applyRenderMode() {
   updateRenderBtn();
 }
 $('btnRender').addEventListener('click', () => {
-  S.render = S.render === '3d' ? '2d' : '3d'; save();
-  if (S.render === '3d') {
-    if (r3State === 'failed') { showToast('這台裝置無法顯示 3D 畫面，維持 2D。'); S.render = '2d'; save(); }
-    else ensure3D();
-  }
+  S.render = S.render === '3d' ? '2d' : '3d';
+  if (S.render === '3d' && r3State === 'failed') { showToast('這台裝置無法顯示 3D 畫面，維持 2D。'); S.render = '2d'; }
+  else if (S.render === '3d') ensure3D();
+  save();
+  try { localStorage.setItem('blow-candle-render', S.render); } catch (e) {}
   applyRenderMode();
 });
 
