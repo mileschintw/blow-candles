@@ -1,56 +1,65 @@
-# 吹蠟燭 Blow Candles
+# Blow Candles
 
-一個在手機瀏覽器上運作的生日蛋糕網頁：對著手機麥克風吹氣，就能把蠟燭吹熄。
+**English** | [繁體中文](README.zh-TW.md)
 
-**線上試玩：** https://vermillion-platypus-48259c.netlify.app/
+A birthday cake for your phone's browser: blow at the microphone and the candles go out.
 
-整個 app 是單一個 [`index.html`](index.html)，不需要建置步驟。
+**Live demo:** https://vermillion-platypus-48259c.netlify.app/
 
-## 功能
+The whole app is a single [`index.html`](index.html) with no build step.
 
-- **兩種蠟燭**：單支蠟燭（1–40 支）或數字蠟燭（最多 4 位數，例如 `18`、`2026`）。
-- **3D 即時光影**：右上角按鈕可切換，用 three.js 繪製，有立體蛋糕與數字蠟燭。光源在火焰位置並跟著閃爍，蠟燭會投下陰影，蠟會透出暖光，吹熄後冒煙。不支援時自動改用 2D。
-- **2D 版本（預設）**：在各種裝置上都能流暢運作。
-- **吹氣偵測**：
-  - 以「比環境噪音大多少」來判斷，所以安靜房間和吵雜餐廳的感覺一致。
-  - 說話聲、敲到手機這類短暫聲音會被過濾掉。
-  - 吹氣是累積計算的，忽大忽小的吹氣也能吹熄。
-- **自動校準**：先安靜 2 秒、再吹 3 秒，自動設定門檻；也可以手動拖曳門檻線。
-- **音效**：吹熄的氣音與煙霧聲、點火聲；全部吹熄後播放生日快樂歌、撒彩帶。這些聲音全部在瀏覽器即時合成，不用音檔。
-- **網址參數**：
-  - `?num=25`：數字蠟燭
-  - `?count=3`：單支蠟燭數量
-  - `?r=3d`：直接使用 3D 畫面
-  - `?debug`：顯示偵測數值
+## Features
 
-## 使用與部署
+- **Two kinds of candles:** regular candles (1–40) or number candles (up to 4 digits, such as `18` or `2026`).
+- **2D view (default):** runs smoothly on any device.
+- **Real-time 3D view:** switch with the button at the top right.
+  - Rendered with three.js: a modelled cake and extruded number candles.
+  - The light sits in the flames and flickers with them, candles cast shadows, the wax glows warm, and smoke rises after you blow.
+  - Falls back to 2D if 3D isn't supported.
+- **Blow detection:**
+  - Measures how much louder the sound is than the room, so a quiet bedroom and a noisy restaurant feel the same.
+  - Talking and short knocks on the phone are filtered out.
+  - Blowing is accumulated over time, so an uneven, gusty blow still works.
+- **Auto calibration:** stay quiet for 2 seconds, then blow for 3, and the threshold is set for you. You can also drag the threshold line by hand.
+- **Sound:**
+  - A breathy puff with a fading smoke hiss, and a match strike when relighting.
+  - When every candle is out, Happy Birthday plays and confetti falls.
+  - All sound is synthesized live in the browser, with no audio files.
+- **URL parameters:**
+  - `?num=25`: number candles
+  - `?count=3`: number of regular candles
+  - `?r=3d`: open in 3D
+  - `?debug`: show detector readings
 
-手機瀏覽器只在 **HTTPS**（或 `localhost`）下允許使用麥克風，所以請放在 HTTPS 網址上，例如 Netlify、GitHub Pages。直接開啟本機檔案，或嵌入在 claude.ai 等網站的 iframe 裡，都無法使用麥克風。這種情況下可以用「點蠟燭吹熄」模式。
+## Using and hosting it
 
-本機測試：
+Phone browsers only allow the microphone over **HTTPS** (or on `localhost`), so serve the file from an HTTPS host such as Netlify or GitHub Pages. Opening the file directly from storage, or embedding it in another site's iframe (claude.ai, for example), blocks the microphone. In that case, tap a candle to blow it out instead.
+
+To try it locally, run:
 
 ```bash
 python -m http.server 8765
 ```
 
-然後開啟 http://localhost:8765/ 。
+Then open http://localhost:8765/.
 
-3D 版本會從 jsDelivr 載入 three.js 0.160，需要網路連線與支援 import maps 的瀏覽器（iOS Safari 16.4 以上）。
+The 3D view loads three.js 0.160 from jsDelivr. It needs a network connection and a browser with import map support (iOS Safari 16.4 or later).
 
-## 版本紀錄
+## Versions
 
-| 版本 | 日期 | 內容 |
+| Version | Date | Changes |
 |---|---|---|
-| v1.0.0 | 2026-10-07 | 2D 畫面、單支與數字蠟燭、麥克風吹氣、靈敏度門檻、合成音效與生日歌 |
-| v2.0.0 | 2026-10-07 | 吹熄音效改成柔和的氣音；重寫吹氣偵測（環境噪音基準、說話過濾、累積計算）；自動校準 |
-| v3.0.0 | 2026-10-08 | 即時 3D 繪圖（three.js），預設 3D，可切換 2D |
+| v1.0.0 | 2026-10-07 | 2D view, regular and number candles, microphone blowing, adjustable threshold, synthesized sounds and birthday song |
+| v2.0.0 | 2026-10-07 | Softer, breath-like blow-out sound; rebuilt blow detection (room-noise baseline, speech filtering, accumulated blowing); auto calibration |
+| v3.0.0 | 2026-10-08 | Real-time 3D rendering (three.js), 3D by default, switchable to 2D |
+| Unreleased | 2026-10-08 | 2D is the default again; 3D loads only when chosen |
 
-詳細的每一步調整請看 commit 紀錄。
+See the commit history for every individual change.
 
-## 測試
+## Tests
 
-[`tests/`](tests/) 內是開發時使用的無頭瀏覽器測試。它會用合成的錄音（吹氣、說話、敲擊、咖啡廳噪音）餵給模擬麥克風，確認吹氣會熄滅、其他聲音不會誤觸。另外也測試自動校準和 3D 繪圖。
+[`tests/`](tests/) holds the headless-browser tests used during development. They feed synthesized recordings (blowing, talking, knocking, café noise) into a fake microphone and check that blowing puts the candles out while other sounds don't. They also cover auto calibration and the 3D view.
 
-## 授權
+## License
 
 [MIT](LICENSE)
