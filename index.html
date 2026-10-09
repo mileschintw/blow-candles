@@ -125,6 +125,7 @@
   .field.row>label{margin:0;color:var(--fg);font-size:16px}
   .seg{display:flex;background:rgba(255,255,255,.07);border-radius:14px;padding:4px}
   .seg button{flex:1;appearance:none;border:0;background:transparent;height:44px;border-radius:11px;font-size:16px;color:var(--muted)}
+  .seg.small button{font-size:14px;padding:0 2px}
   .seg button.on{background:linear-gradient(135deg,#ffc36b,#ff7b8e);color:#3a1020;font-weight:700}
   .stepper{display:flex;align-items:center;gap:10px}
   .stepper button{appearance:none;width:52px;height:52px;border-radius:14px;border:1px solid var(--line);
@@ -201,7 +202,15 @@
     <label data-t="numLabel">要顯示的數字（最多 4 位）</label>
     <input id="numberInput" type="text" inputmode="numeric" maxlength="4" autocomplete="off" data-t-ph="numPh" placeholder="例如 25">
   </div>
-  <div class="field row"><label for="cakeToggle" data-t="cake">顯示蛋糕</label><input type="checkbox" id="cakeToggle" class="switch"></div>
+  <div class="field">
+    <label data-t="cake">蛋糕</label>
+    <div class="seg small" id="cakeSeg">
+      <button data-cake="off" data-t="cakeOff">不要</button>
+      <button data-cake="classic" data-t="cakeClassic">經典</button>
+      <button data-cake="chocolate" data-t="cakeChoc">巧克力</button>
+      <button data-cake="strawberry" data-t="cakeStraw">草莓鮮奶油</button>
+    </div>
+  </div>
   <div class="field">
     <label><span data-t="threshold">吹熄門檻</span> <b id="thVal">50</b></label>
     <div class="meter big"><span class="fill" id="bigFill"></span><span class="amb" id="bigAmb"></span><span class="mark" id="bigMark"></span></div>
@@ -266,7 +275,7 @@ const STR = {
     appName: '吹蠟燭', relight: '🔥 重新點燃', relightAria: '全部重新點燃', renderAria: '切換 2D／3D 畫面', settings: '設定',
     meterAria: '吹氣強度，點一下調整靈敏度', sens: '靈敏度', wish: '許個願吧 ✨', again: '再點一次 🔥',
     candleStyle: '蠟燭樣式', single: '單支蠟燭', number: '數字蠟燭', count: '蠟燭數量（1–40）', fewer: '減少', more: '增加',
-    numLabel: '要顯示的數字（最多 4 位）', numPh: '例如 25', cake: '顯示蛋糕', threshold: '吹熄門檻',
+    numLabel: '要顯示的數字（最多 4 位）', numPh: '例如 25', cake: '蛋糕', cakeOff: '不要', cakeClassic: '經典', cakeChoc: '巧克力', cakeStraw: '草莓鮮奶油', threshold: '吹熄門檻',
     moreSens: '← 更敏感', harder: '需要更用力 →',
     tip: '彩色條是「比周圍環境大聲多少」。吹氣讓它超過白線，蠟燭就會熄滅；淡灰線是最近環境噪音的高點，白線要放在它右邊。說話聲會被自動過濾。',
     calibBtn: '🎯 自動校準（建議先做一次）', msgLabel: '吹熄後的祝福文字', sfx: '音效', song: '全部吹熄後播放生日快樂歌',
@@ -293,7 +302,7 @@ const STR = {
     appName: 'Blow the Candles', relight: '🔥 Relight', relightAria: 'Relight all candles', renderAria: 'Switch between 2D and 3D', settings: 'Settings',
     meterAria: 'Blow strength. Tap to adjust sensitivity', sens: 'Sensitivity', wish: 'Make a wish ✨', again: 'Light them again 🔥',
     candleStyle: 'Candle style', single: 'Candles', number: 'Number candles', count: 'Number of candles (1–40)', fewer: 'Fewer', more: 'More',
-    numLabel: 'Number to show (up to 4 digits)', numPh: 'e.g. 25', cake: 'Show the cake', threshold: 'Blow threshold',
+    numLabel: 'Number to show (up to 4 digits)', numPh: 'e.g. 25', cake: 'Cake', cakeOff: 'None', cakeClassic: 'Classic', cakeChoc: 'Chocolate', cakeStraw: 'Strawberry', threshold: 'Blow threshold',
     moreSens: '← More sensitive', harder: 'Needs a harder blow →',
     tip: 'The coloured bar shows how much louder than the room you are. Blow past the white line and the candles go out. The faint grey line is the recent peak of room noise; keep the white line to its right. Talking is filtered out automatically.',
     calibBtn: '🎯 Auto-calibrate (recommended first)', msgLabel: 'Message once the candles are out', sfx: 'Sound effects', song: 'Play Happy Birthday when all are out',
@@ -344,7 +353,8 @@ function applyLang() {
 
 /* ---------------- settings ---------------- */
 const KEY = 'blow-candle-v2';
-const DEFAULTS = { mode: 'single', count: 5, number: '18', threshold: 40, msg: null, sfx: true, song: true, calibrated: false, render: '3d', cake: true, lang: 'auto' };
+const DEFAULTS = { mode: 'single', count: 5, number: '18', threshold: 40, msg: null, sfx: true, song: true, calibrated: false, render: '3d', cake: 'classic', lang: 'auto' };
+const CAKE_FLAVOURS = ['classic', 'chocolate', 'strawberry'];
 const S = Object.assign({}, DEFAULTS);
 try {
   const raw = localStorage.getItem(KEY);
@@ -362,7 +372,7 @@ try {
   if (q.has('num')) { S.mode = 'number'; S.number = q.get('num'); }
   if (q.has('count')) { S.mode = 'single'; S.count = +q.get('count'); }
   if (q.has('th')) S.threshold = +q.get('th');
-  if (q.has('cake')) S.cake = q.get('cake') !== '0';
+  if (q.has('cake')) { const v = q.get('cake'); S.cake = ['0', 'off', 'none'].includes(v) ? false : { choc: 'chocolate', straw: 'strawberry' }[v] || v; }
   if (q.has('lang')) S.lang = q.get('lang');
   if (q.has('r')) S.render = q.get('r') === '2d' ? '2d' : '3d';
 } catch (e) {}
@@ -374,7 +384,8 @@ function sanitize() {
   // the default wish follows the language; a saved copy of either default counts as 'default'
   S.msg = S.msg == null || DEFAULT_MSGS.includes(S.msg) ? null : String(S.msg).slice(0, 24);
   S.lang = ['zh', 'en'].includes(S.lang) ? S.lang : 'auto';
-  S.sfx = !!S.sfx; S.song = !!S.song; S.calibrated = !!S.calibrated; S.cake = S.cake !== false;
+  S.sfx = !!S.sfx; S.song = !!S.song; S.calibrated = !!S.calibrated;
+  S.cake = S.cake === false ? false : CAKE_FLAVOURS.includes(S.cake) ? S.cake : 'classic';   // older saves stored true/false
   S.render = S.render === '3d' ? '3d' : '2d';
 }
 sanitize();
@@ -1246,8 +1257,33 @@ function drawTable(amb, w = 0) {
   ctx.globalCompositeOperation = 'source-over';
 }
 
+const CAKE2D = {
+  classic: { body: ['#b4466e', '#f394b4', '#ffb6cd', '#e47aa0', '#8e2f55'], pearl: ['#ffffff', '#e8c9d8'], dots: ['#ffe28a', '#9fe7ff'],
+    frost: '#fff4f7', shade: ['rgba(170,90,130,.35)', 'rgba(150,70,110,.4)'], top: ['#ffffff', '#f6dde7'], sprinkles: null },
+  // chocolate sponge, glossy dark ganache, gold dragées
+  chocolate: { body: ['#4a2a1a', '#93613f', '#a8744f', '#7d4d31', '#3a2014'], pearl: ['#fff1c9', '#c08a2c'], dots: ['#e8c070', '#f5e6d0'],
+    frost: '#2c140a', shade: ['rgba(10,4,2,.45)', 'rgba(10,4,2,.5)'], top: ['#7a4328', '#3a1d11'], sprinkles: ['#f5e6d0', '#e8c070', '#ffffff', '#d9a441'], gloss: true },
+  // whipped cream all over, strawberry sauce running down, a ring of strawberries on top
+  strawberry: { body: ['#dcc6c1', '#fbf1ed', '#fffaf8', '#f1e2de', '#cdb4ae'], pearl: ['#ffffff', '#efdcdc'], dots: null,
+    frost: '#e8506f', shade: ['rgba(120,10,40,.3)', 'rgba(110,10,35,.35)'], top: ['#fffdfb', '#f6e8e4'], sprinkles: null, berries: true },
+};
+function drawBerry(x, y, sz) {      // a strawberry standing tip-up, leaves at its foot
+  ctx.fillStyle = '#2f8f3a';
+  for (let k = -2; k <= 2; k++) { ctx.beginPath(); ctx.ellipse(x + k * sz * 0.3, y + sz * 0.55, sz * 0.32, sz * 0.12, k * 0.35, 0, 7); ctx.fill(); }
+  const g = ctx.createRadialGradient(x - sz * 0.3, y - sz * 0.3, sz * 0.1, x, y, sz * 1.1);
+  g.addColorStop(0, '#ff6b7d'); g.addColorStop(0.55, '#e3233f'); g.addColorStop(1, '#9b0f25');
+  ctx.fillStyle = g; ctx.beginPath();
+  ctx.moveTo(x, y - sz * 1.05);
+  ctx.bezierCurveTo(x + sz * 0.75, y - sz * 0.6, x + sz * 0.8, y + sz * 0.5, x, y + sz * 0.55);
+  ctx.bezierCurveTo(x - sz * 0.8, y + sz * 0.5, x - sz * 0.75, y - sz * 0.6, x, y - sz * 1.05);
+  ctx.fill();
+  ctx.fillStyle = 'rgba(255,230,140,.85)';
+  for (const [u, v] of [[-0.35, -0.2], [0.3, -0.35], [0, 0.1], [-0.25, 0.3], [0.35, 0.2], [0, -0.6]]) { ctx.beginPath(); ctx.arc(x + u * sz, y + v * sz, sz * 0.05, 0, 7); ctx.fill(); }
+  ctx.fillStyle = 'rgba(255,255,255,.45)'; ctx.beginPath(); ctx.ellipse(x - sz * 0.28, y - sz * 0.35, sz * 0.1, sz * 0.22, -0.4, 0, 7); ctx.fill();
+}
 function drawCake(amb) {
   const { cx, rx, ry, top, bottom, ch } = G;
+  const F = CAKE2D[S.cake] || CAKE2D.classic;
   // plate
   const py = bottom + ry * 0.15;
   ctx.fillStyle = 'rgba(0,0,0,.35)';
@@ -1260,8 +1296,7 @@ function drawCake(amb) {
 
   // body
   const bg = ctx.createLinearGradient(cx - rx, 0, cx + rx, 0);
-  bg.addColorStop(0, '#b4466e'); bg.addColorStop(0.25, '#f394b4'); bg.addColorStop(0.45, '#ffb6cd');
-  bg.addColorStop(0.75, '#e47aa0'); bg.addColorStop(1, '#8e2f55');
+  [0, 0.25, 0.45, 0.75, 1].forEach((o, i) => bg.addColorStop(o, F.body[i]));
   ctx.fillStyle = bg;
   ctx.beginPath(); ctx.moveTo(cx - rx, top); ctx.lineTo(cx - rx, bottom);
   ctx.ellipse(cx, bottom, rx, ry, 0, Math.PI, 0, true); ctx.lineTo(cx + rx, top); ctx.closePath(); ctx.fill();
@@ -1270,17 +1305,17 @@ function drawCake(amb) {
     const a = Math.PI * i / 26, x = cx + Math.cos(a) * rx * 0.985, y = bottom - ch * 0.03 + Math.sin(a) * ry;
     const pr = ch * 0.045;
     const g = ctx.createRadialGradient(x - pr * 0.3, y - pr * 0.3, 0, x, y, pr);
-    g.addColorStop(0, '#ffffff'); g.addColorStop(1, '#e8c9d8');
+    g.addColorStop(0, F.pearl[0]); g.addColorStop(1, F.pearl[1]);
     ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, pr, 0, 7); ctx.fill();
   }
   // ribbon dots
-  for (let i = 1; i < 12; i++) {
+  if (F.dots) for (let i = 1; i < 12; i++) {
     const a = Math.PI * i / 12, x = cx + Math.cos(a) * rx * 0.97, y = top + ch * 0.55 + Math.sin(a) * ry;
-    ctx.fillStyle = i % 2 ? '#ffe28a' : '#9fe7ff';
+    ctx.fillStyle = F.dots[i % 2];
     ctx.beginPath(); ctx.arc(x, y, ch * 0.03 * (0.5 + 0.5 * Math.sin(a)), 0, 7); ctx.fill();
   }
   // frosting with drips (front half)
-  ctx.fillStyle = '#fff4f7';
+  ctx.fillStyle = F.frost;
   ctx.beginPath();
   ctx.moveTo(cx + rx * 1.01, top);
   const N = 80;
@@ -1295,18 +1330,31 @@ function drawCake(amb) {
   ctx.closePath(); ctx.fill();
   // frosting shading
   const sg = ctx.createLinearGradient(cx - rx, 0, cx + rx, 0);
-  sg.addColorStop(0, 'rgba(170,90,130,.35)'); sg.addColorStop(0.35, 'rgba(255,255,255,0)'); sg.addColorStop(1, 'rgba(150,70,110,.4)');
+  sg.addColorStop(0, F.shade[0]); sg.addColorStop(0.35, 'rgba(255,255,255,0)'); sg.addColorStop(1, F.shade[1]);
   ctx.fillStyle = sg; ctx.fill();
+  if (F.gloss) {      // ganache shine along the drips
+    const hg = ctx.createLinearGradient(cx - rx, 0, cx + rx, 0);
+    hg.addColorStop(0.15, 'rgba(255,220,190,0)'); hg.addColorStop(0.3, 'rgba(255,220,190,.22)'); hg.addColorStop(0.42, 'rgba(255,220,190,0)');
+    ctx.fillStyle = hg; ctx.fill();
+  }
   // top surface
   const tg = ctx.createRadialGradient(cx - rx * 0.2, top - ry * 0.3, 0, cx, top, rx);
-  tg.addColorStop(0, '#ffffff'); tg.addColorStop(1, '#f6dde7');
+  tg.addColorStop(0, F.top[0]); tg.addColorStop(1, F.top[1]);
   ctx.fillStyle = tg; ctx.beginPath(); ctx.ellipse(cx, top, rx, ry, 0, 0, 7); ctx.fill();
   // sprinkles
   ctx.lineCap = 'round'; ctx.lineWidth = Math.max(1.5, G.cw * 0.009);
-  for (const s of sprinkles) {
+  if (F.gloss) {
+    ctx.fillStyle = 'rgba(255,225,200,.16)'; ctx.beginPath(); ctx.ellipse(cx - rx * 0.25, top - ry * 0.35, rx * 0.45, ry * 0.22, -0.1, 0, 7); ctx.fill();
+  }
+  if (!F.berries) sprinkles.forEach((s, i) => {
     const x = cx + s.u * rx * 0.92, y = top + s.v * ry * 0.85, l = G.cw * 0.012;
-    ctx.strokeStyle = s.c; ctx.beginPath();
+    ctx.strokeStyle = F.sprinkles ? F.sprinkles[i % F.sprinkles.length] : s.c; ctx.beginPath();
     ctx.moveTo(x - Math.cos(s.a) * l, y - Math.sin(s.a) * l * 0.5); ctx.lineTo(x + Math.cos(s.a) * l, y + Math.sin(s.a) * l * 0.5); ctx.stroke();
+  });
+  if (F.berries) {    // ring of strawberries around the edge of the top, back ones first
+    const sz = G.cw * 0.042, list = [];
+    for (let i = 0; i < 14; i++) { const a = (i + 0.5) / 14 * Math.PI * 2; list.push([cx + Math.cos(a) * rx * 0.84, top + Math.sin(a) * ry * 0.8]); }
+    list.sort((a, b) => a[1] - b[1]).forEach(([x, y]) => drawBerry(x, y, sz));
   }
   // warm candle light on the cake
   ctx.globalCompositeOperation = 'lighter';
@@ -1457,11 +1505,12 @@ function updateMicUI() {
 }
 function syncForm() {
   document.querySelectorAll('#modeSeg button').forEach(b => b.classList.toggle('on', b.dataset.mode === S.mode));
+  document.querySelectorAll('#cakeSeg button').forEach(b => b.classList.toggle('on', b.dataset.cake === (S.cake || 'off')));
   document.querySelectorAll('#langSeg button').forEach(b => b.classList.toggle('on', b.dataset.lang === S.lang));
   $('fCount').classList.toggle('hidden-field', S.mode !== 'single');
   $('fNumber').classList.toggle('hidden-field', S.mode !== 'number');
   $('countInput').value = S.count; $('numberInput').value = S.number;
-  $('msgInput').value = wishText(); $('sfxToggle').checked = S.sfx; $('cakeToggle').checked = S.cake; $('songToggle').checked = S.song;
+  $('msgInput').value = wishText(); $('sfxToggle').checked = S.sfx; $('songToggle').checked = S.song;
   updateMarks();
 }
 function openSheet() {
@@ -1506,10 +1555,16 @@ $('langSeg').addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b || b.dataset.lang === S.lang) return;
   S.lang = b.dataset.lang; save(); applyLang(); syncForm();
 });
-$('cakeToggle').addEventListener('change', e => {
-  S.cake = e.target.checked; save();
-  confetti.length = 0; streamers.length = 0; if (R3) R3.clearConfetti();   // nothing left resting on a cake that's gone
-  layout();
+$('cakeSeg').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  const v = b.dataset.cake === 'off' ? false : b.dataset.cake;
+  if (v === S.cake) return;
+  const shown = !!S.cake !== !!v;
+  S.cake = v; save(); syncForm();
+  if (shown) {        // the layout changes: nothing left resting on a cake that's gone, or floating where one appeared
+    confetti.length = 0; streamers.length = 0; if (R3) R3.clearConfetti();
+    layout();
+  }
 });
 $('sfxToggle').addEventListener('change', e => { S.sfx = e.target.checked; save(); });
 $('songToggle').addEventListener('change', e => { S.song = e.target.checked; save(); if (!S.song) stopSong(); });
@@ -1898,6 +1953,7 @@ function create3D(THREE) {
     plate: new THREE.MeshStandardMaterial({ color: 0xf4eff3, roughness: 0.18, side: THREE.DoubleSide }),
     sponge: new THREE.MeshStandardMaterial({ color: 0xf8b6cb, roughness: 0.62 }),
     glaze: new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.24, side: THREE.DoubleSide }),
+    drip: new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.24, side: THREE.DoubleSide }),
     pearl: new THREE.MeshStandardMaterial({ color: 0xfff4f8, roughness: 0.16, metalness: 0.15 }),
     dot: new THREE.MeshStandardMaterial({ roughness: 0.3 }),
     sprinkle: new THREE.MeshStandardMaterial({ roughness: 0.35 }),
@@ -1947,7 +2003,7 @@ function create3D(THREE) {
       p.setXYZ(i, Math.sin(a) * r, DTOP - s * L, Math.cos(a) * r);
     }
     dripG.computeVertexNormals(); }
-  cakeG.add(new THREE.Mesh(dripG, M.glaze));
+  cakeG.add(new THREE.Mesh(dripG, M.drip));
   const m4 = new THREE.Matrix4(), q4 = new THREE.Quaternion(), e4 = new THREE.Euler(), v4 = new THREE.Vector3(), s4 = new THREE.Vector3(1, 1, 1);
   const pearls = new THREE.InstancedMesh(new THREE.SphereGeometry(0.038, 10, 8), M.pearl, 64);
   for (let i = 0; i < 64; i++) { const a = i / 64 * Math.PI * 2; pearls.setMatrixAt(i, m4.makeTranslation(Math.sin(a) * (R + 0.006), Y0 + 0.036, Math.cos(a) * (R + 0.006))); }
@@ -1969,6 +2025,38 @@ function create3D(THREE) {
     sprinkles.setColorAt(i, new THREE.Color(sprinkleCols[i % sprinkleCols.length]));
   }
   cakeG.add(sprinkles);
+  // strawberries standing tip-up in a ring on the cream, each on a little rosette of leaves
+  const berryGeo = new THREE.SphereGeometry(1, 14, 10);
+  { const bp = berryGeo.attributes.position;
+    for (let i = 0; i < bp.count; i++) { const y = bp.getY(i), k = 1 - 0.42 * (y + 1) / 2; bp.setXYZ(i, bp.getX(i) * k, y, bp.getZ(i) * k); }
+    berryGeo.computeVertexNormals(); }
+  const NB = 14;
+  const berries = new THREE.InstancedMesh(berryGeo, new THREE.MeshStandardMaterial({ color: 0xd8203a, roughness: 0.28 }), NB);
+  const leaves = new THREE.InstancedMesh(new THREE.ConeGeometry(0.075, 0.02, 7), new THREE.MeshStandardMaterial({ color: 0x2f8f3a, roughness: 0.6 }), NB);
+  for (let i = 0; i < NB; i++) {
+    const a = (i + 0.5) / NB * Math.PI * 2, r = 0.87, x = Math.sin(a) * r, z = Math.cos(a) * r, y = capY(r);
+    q4.setFromEuler(e4.set(rand(-0.12, 0.12), rand(0, 6), rand(-0.12, 0.12)));
+    berries.setMatrixAt(i, m4.compose(v4.set(x, y + 0.07, z), q4, s4.set(0.058, 0.078, 0.058)));
+    leaves.setMatrixAt(i, m4.compose(v4.set(x, y + 0.008, z), q4.identity(), s4.set(1, 1, 1)));
+  }
+  s4.set(1, 1, 1);
+  const berryG = new THREE.Group(); berryG.add(berries, leaves); cakeG.add(berryG);
+  // flavours: [sponge, top glaze, drips, pearls] colours and finishes, decorations on or off
+  const FLAVOUR3 = {
+    classic: { sponge: [0xf8b6cb, 0.62], glaze: [0xffffff, 0.24], drip: [0xffffff, 0.24], pearl: [0xfff4f8, 0.16, 0.15], dots: pastel, sprinkles: sprinkleCols },
+    chocolate: { sponge: [0x8a5636, 0.75], glaze: [0x2e160b, 0.14], drip: [0x2e160b, 0.14], pearl: [0xe0b25a, 0.25, 0.75],
+      dots: ['#e8c070', '#f5e6d0'], sprinkles: ['#f5e6d0', '#e8c070', '#ffffff', '#d9a441', '#f0d9b5'] },
+    strawberry: { sponge: [0xfff1ec, 0.8], glaze: [0xfffaf7, 0.55], drip: [0xe8506f, 0.2], pearl: [0xffffff, 0.6, 0], dots: null, sprinkles: null, berries: true },
+  };
+  let flavour3 = null;
+  function applyFlavour3(name) {
+    const f = FLAVOUR3[name] || FLAVOUR3.classic; flavour3 = name;
+    const set = (m, [c, rough, metal = 0]) => { m.color.setHex(c); m.roughness = rough; m.metalness = metal; };
+    set(M.sponge, f.sponge); set(M.glaze, f.glaze); set(M.drip, f.drip); set(M.pearl, f.pearl);
+    dots.visible = !!f.dots; sprinkles.visible = !!f.sprinkles; berryG.visible = !!f.berries;
+    if (f.dots) { for (let i = 0; i < 40; i++) dots.setColorAt(i, new THREE.Color(f.dots[i % f.dots.length])); dots.instanceColor.needsUpdate = true; }
+    if (f.sprinkles) { for (let i = 0; i < 110; i++) sprinkles.setColorAt(i, new THREE.Color(f.sprinkles[i % f.sprinkles.length])); sprinkles.instanceColor.needsUpdate = true; }
+  }
 
   // ---------- lights: one point light at the flames + soft room fill ----------
   const hemi = new THREE.HemisphereLight(0x75627e, 0x2a1810, 0.45); scene.add(hemi);
@@ -2380,7 +2468,8 @@ function create3D(THREE) {
     t3 += dt;
     adaptResolution(dt);
     if (builtVer !== layoutVer) buildCandles3D();
-    cakeG.visible = S.cake;
+    cakeG.visible = !!S.cake;
+    if (S.cake && S.cake !== flavour3) applyFlavour3(S.cake);
     placeCamera();
     const wind = st.wind;
     let tot = 0, px = 0, py = 0, pz = 0;
