@@ -885,12 +885,12 @@ function popConfetti2D() {
       const a = base + rand(-0.32, 0.32), v = rand(750, 1300) * k;
       confetti.push({ x: ox, y: oy, vx: Math.cos(a) * v, vy: Math.sin(a) * v, rx: rand(0, 6), ry: rand(0, 6), rz: rand(0, 6),
         wx: rand(-14, 14), wy: rand(-10, 10), wz: rand(-5, 5), w: rand(6, 10) * k, h: rand(3.5, 6) * k, col: CONF_COLS[i % CONF_COLS.length],
-        foil: Math.random() < 0.18, life: 0, rest: false, floor: rand(G.bottom + G.ry * 1.45, H - 50), depth: rand(-0.85, 0.85) });
+        foil: Math.random() < 0.18, life: 0, rest: false, depth: rand(-0.85, 0.85) });
     }
     for (let i = 0; i < 5; i++) {
       const a = base + rand(-0.15, 0.4) * (side < 0 ? 1 : -1), v = rand(850, 1150) * k, n = 16, seg = rand(9, 13) * k;
       const s = { x: new Float32Array(n), y: new Float32Array(n), ox: new Float32Array(n), oy: new Float32Array(n), n, seg,
-        col: CONF_COLS[(i * 3 + (side > 0 ? 1 : 0)) % CONF_COLS.length], width: 3.4 * k, tw: rand(0, 6), floor: rand(G.bottom + G.ry * 1.45, H - 50), fresh: true, age: 0, vx: Math.cos(a) * v, vy: Math.sin(a) * v };
+        col: CONF_COLS[(i * 3 + (side > 0 ? 1 : 0)) % CONF_COLS.length], width: 3.4 * k, tw: rand(0, 6), fresh: true, age: 0, vx: Math.cos(a) * v, vy: Math.sin(a) * v };
       s.x.fill(ox); s.y.fill(oy); s.ox.fill(ox); s.oy.fill(oy);
       streamers.push(s);
     }
@@ -898,9 +898,13 @@ function popConfetti2D() {
 }
 function updateConfetti2D(dt) {
   const k = fxScale(), grav = 300 * k;
-  for (const p of confetti) {
+  // the poppers fire from just outside the edges, so only drop pieces once they've had time to fly in
+  const gone = (x, y, age) => age > 0.8 && (y > H + 30 || x < -60 || x > W + 60);
+  for (let i = confetti.length - 1; i >= 0; i--) {
+    const p = confetti[i];
     p.life += dt;
     if (p.rest) continue;
+    if (gone(p.x, p.y, p.life)) { confetti.splice(i, 1); continue; }
     const face = Math.abs(Math.cos(p.rx) * Math.cos(p.ry));          // flat pieces catch more air
     const drag = (2.6 + 5 * face) * Math.min(1, 0.15 + p.life * 1.2);
     p.vx *= Math.exp(-drag * dt * 0.7); p.vy = p.vy * Math.exp(-drag * dt) + grav * dt;
@@ -908,14 +912,14 @@ function updateConfetti2D(dt) {
     const py = p.y;
     p.x += p.vx * dt; p.y += p.vy * dt;
     p.rx += p.wx * dt; p.ry += p.wy * dt; p.rz += p.wz * dt;
-    // land on the cake top, otherwise on the table
+    // land on the cake top; everything else falls out of view
     if (S.cake && p.vy > 0 && Math.abs(p.x - G.cx) < G.rx * 0.95) {
       const u = (p.x - G.cx) / G.rx, top = G.top + p.depth * G.ry * Math.sqrt(1 - u * u);
       if (py < top && p.y >= top) { p.y = top; p.rest = true; }
     }
-    if (!p.rest && p.life > 0.4 && p.y >= p.floor && p.vy > 0) { p.y = p.floor; p.rest = true; }
   }
-  for (const s of streamers) {
+  for (let si = streamers.length - 1; si >= 0; si--) {
+    const s = streamers[si];
     const damp = Math.exp(-1.5 * dt), gdt = grav * 1.6 * dt * dt;
     s.age += dt;
     for (let i = 0; i < s.n; i++) {
@@ -923,9 +927,11 @@ function updateConfetti2D(dt) {
       if (s.fresh) { const f = 1 - i * 0.035; vx = s.vx * dt * f; vy = s.vy * dt * f; }   // whole ribbon is ejected, tail a bit slower
       s.ox[i] = s.x[i]; s.oy[i] = s.y[i];
       s.x[i] += vx + Math.sin(st.t * 5 + i * 0.7 + s.tw) * 0.25 * k; s.y[i] += vy + gdt;
-      if (s.age > 0.5 && s.y[i] > s.floor) { s.y[i] = s.floor; s.ox[i] = s.x[i] - vx * 0.3; }
     }
     s.fresh = false;
+    let out = true;
+    for (let i = 0; i < s.n && out; i++) out = gone(s.x[i], s.y[i], s.age);
+    if (out) { streamers.splice(si, 1); continue; }
     for (let it = 0; it < 3; it++) for (let i = 1; i < s.n; i++) {
       const dx = s.x[i] - s.x[i - 1], dy = s.y[i] - s.y[i - 1], d = Math.hypot(dx, dy) || 1e-6, f = (d - s.seg) / d * 0.5;
       s.x[i - 1] += dx * f; s.y[i - 1] += dy * f; s.x[i] -= dx * f; s.y[i] -= dy * f;
@@ -1539,7 +1545,9 @@ window.candleDebug = {
   project3D(i) { return R3 ? R3.project(i) : null; },
   loseContext3D() { if (R3) R3.loseContext(); },
   advance(sec) { for (let t = 0; t < sec; t += 1 / 60) { update(1 / 60); if (use3D()) R3.stepFx(1 / 60); } },
-  fx() { return { shells: FW.shells.length, stars: FW.parts.length, queued: FW.queue.length, confetti: confetti.length, streamers: streamers.length }; },
+  fx() { return { shells: FW.shells.length, stars: FW.parts.length, queued: FW.queue.length, confetti: confetti.length, streamers: streamers.length,
+    resting2D: confetti.filter(p => p.rest).length, snap2D: confetti.filter(p => p.rest).map(p => [p.x, p.y, p.rx, p.ry, p.rz].join()).join('|'),
+    r3: R3 ? R3.fx() : null }; },
   calText() { return calEl.hidden ? null : $('calTitle').textContent + ' | ' + $('calText').textContent; }
 };
 
@@ -1906,8 +1914,8 @@ function create3D(THREE) {
   const shadows = new THREE.InstancedMesh(shGeo, shMat, MAXC); shadows.count = 0; shadows.renderOrder = 2; scene.add(shadows);
 
   // ---------- party poppers in 3D: lit paper + foil confetti and curly streamers that land on the cake ----------
-  const confMat = new THREE.MeshStandardMaterial({ roughness: 0.55, side: THREE.DoubleSide });
-  const foilMat = new THREE.MeshStandardMaterial({ roughness: 0.2, metalness: 0.9, side: THREE.DoubleSide });
+  const confMat = new THREE.MeshStandardMaterial({ roughness: 0.55, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 });
+  const foilMat = new THREE.MeshStandardMaterial({ roughness: 0.2, metalness: 0.9, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 });
   const confGeo = new THREE.PlaneGeometry(1, 1);
   const paper = new THREE.InstancedMesh(confGeo, confMat, 260), foil = new THREE.InstancedMesh(confGeo, foilMat, 60);
   for (const im of [paper, foil]) { im.count = 0; im.frustumCulled = false; scene.add(im); }
@@ -1946,62 +1954,90 @@ function create3D(THREE) {
         const dir = new THREE.Vector3(-side * rand(0.25, 0.7), rand(2.0, 2.8), rand(-1.1, -0.4)).normalize();
         const p = { p: origin.clone(), v: dir.multiplyScalar(rand(7.5, 11)), q: new THREE.Quaternion().setFromEuler(ce.set(rand(0, 6), rand(0, 6), rand(0, 6))),
           axis: new THREE.Vector3(rand(-1, 1), rand(-1, 1), rand(-1, 1)).normalize(), spin: rand(7, 16), w: rand(0.035, 0.052), h: rand(0.02, 0.03),
-          foil: isFoil, rest: false, life: 0, idx: 0 };
+          foil: isFoil, rest: false, life: 0, idx: 0, col: null };
         p.idx = isFoil ? foil.count++ : paper.count++;
-        (isFoil ? foil : paper).setColorAt(p.idx, col.set(isFoil ? FOIL3[p.idx % FOIL3.length] : CONF3[p.idx % CONF3.length]));
+        p.col = new THREE.Color(isFoil ? FOIL3[p.idx % FOIL3.length] : CONF3[p.idx % CONF3.length]);
+        (isFoil ? foil : paper).setColorAt(p.idx, col.copy(p.col));
         pieces.push(p);
       }
       for (let k = 0; k < STRN / 2; k++) {
         const v = new THREE.Vector3(-side * rand(0.3, 0.6), rand(2.0, 2.6), rand(-0.9, -0.4)).normalize().multiplyScalar(rand(6.5, 8.5));
-        const s = { pos: new Float32Array(NODES * 3), old: new Float32Array(NODES * 3), seg: rand(0.045, 0.065), tw: rand(0, 6), v, fresh: true,
+        const s = { pos: new Float32Array(NODES * 3), old: new Float32Array(NODES * 3), seg: rand(0.045, 0.065), tw: rand(0, 6), v, fresh: true, age: 0, still: 0, settled: false,
           col: new THREE.Color(CONF3[(k * 3 + (side > 0 ? 1 : 0)) % CONF3.length]) };
         for (let i = 0; i < NODES; i++) { s.pos.set([origin.x, origin.y, origin.z], i * 3); s.old.set([origin.x, origin.y, origin.z], i * 3); }
         strands.push(s);
       }
     }
     paper.instanceColor.needsUpdate = true; foil.instanceColor.needsUpdate = true;
-    strMesh.visible = true;
+    strMesh.visible = true; confDirty = true;
   }
   function clearConfetti() { pieces.length = 0; strands.length = 0; paper.count = foil.count = 0; strMesh.visible = false; }
+  // pieces settle for good once they land; anything that flies out of view is dropped
+  const ndc3 = new THREE.Vector3();
+  const offScreen = (x, y, z) => {
+    ndc3.set(x, y, z).project(camera);
+    return ndc3.z > 1 || ndc3.y < -1.15 || ndc3.x < -1.15 || ndc3.x > 1.15;
+  };
+  let confDirty = false;
   function updateConfetti3D(dt) {
     if (!pieces.length && !strands.length) return;
     const g = 4.2;
-    for (const p of pieces) {
+    let moved = confDirty, removed = false;
+    for (let i = pieces.length - 1; i >= 0; i--) {
+      const p = pieces[i];
       p.life += dt;
-      if (!p.rest) {
-        cn.set(0, 0, 1).applyQuaternion(p.q);
-        const face = Math.abs(cn.y);                                   // flat pieces catch more air
-        const drag = (1.4 + 6 * face) * Math.min(1, 0.08 + p.life * 0.9);
-        p.v.multiplyScalar(Math.exp(-drag * dt)); p.v.y -= g * dt;
-        p.v.x += cn.x * face * 1.3 * dt; p.v.z += cn.z * face * 1.3 * dt;   // glide along the tilt
-        p.p.addScaledVector(p.v, dt);
-        p.spin = Math.max(4, p.spin * Math.exp(-0.4 * dt));
-        p.q.multiply(cq.setFromAxisAngle(p.axis, p.spin * dt));
-        const r = Math.hypot(p.p.x, p.p.z);
-        if (S.cake && r < 1.03 && r > 0.98 && p.p.y < T && p.p.y > Y0) { p.p.x *= 1.04 / r; p.p.z *= 1.04 / r; }   // slide off the cake side
-        const sy = surfaceY(p.p.x, p.p.z);
-        if (p.v.y < 0 && p.p.y <= sy && p.p.y > sy - 0.08) {
-          p.p.y = sy; p.rest = true;
-          p.q.setFromEuler(ce.set(-Math.PI / 2 + rand(-0.15, 0.15), rand(0, 6), rand(-0.15, 0.15), 'YXZ'));
-        } else if (p.p.y < 0.004) { p.p.y = 0.004; p.rest = true; p.q.setFromEuler(ce.set(-Math.PI / 2, rand(0, 6), 0, 'YXZ')); }
-      }
-      (p.foil ? foil : paper).setMatrixAt(p.idx, cm.compose(p.p, p.q, cs.set(p.w, p.h, 1)));
+      if (p.rest) continue;
+      moved = true;
+      cn.set(0, 0, 1).applyQuaternion(p.q);
+      const face = Math.abs(cn.y);                                   // flat pieces catch more air
+      const drag = (1.4 + 6 * face) * Math.min(1, 0.2 + p.life * 1.5);
+      p.v.multiplyScalar(Math.exp(-drag * dt)); p.v.y -= g * dt;
+      p.v.x += cn.x * face * 1.3 * dt; p.v.z += cn.z * face * 1.3 * dt;   // glide along the tilt
+      p.p.addScaledVector(p.v, dt);
+      p.spin = Math.max(4, p.spin * Math.exp(-0.4 * dt));
+      p.q.multiply(cq.setFromAxisAngle(p.axis, p.spin * dt));
+      const r = Math.hypot(p.p.x, p.p.z);
+      if (S.cake && r < 1.03 && r > 0.98 && p.p.y < T && p.p.y > Y0) { p.p.x *= 1.04 / r; p.p.z *= 1.04 / r; }   // slide off the cake side
+      const sy = surfaceY(p.p.x, p.p.z);
+      // lie (almost) flat a hair above the surface, each piece at its own height so overlaps don't flicker
+      const land = y => { p.p.y = y + 0.0015 + (i % 9) * 0.0004; p.rest = true; p.q.setFromEuler(ce.set(-Math.PI / 2 + rand(-0.03, 0.03), rand(0, 6), rand(-0.03, 0.03), 'YXZ')); };
+      if (p.v.y < 0 && p.p.y <= sy && p.p.y > sy - 0.08) land(sy);
+      else if (p.p.y < 0.004) land(0.004);
+      else if (p.life > 0.8 && offScreen(p.p.x, p.p.y, p.p.z)) { pieces.splice(i, 1); removed = true; }
     }
-    paper.instanceMatrix.needsUpdate = true; foil.instanceMatrix.needsUpdate = true;
-    // streamers: verlet chains of paper ribbon
+    if (removed) {      // compact the instance buffers
+      paper.count = foil.count = 0;
+      for (const p of pieces) {
+        const im = p.foil ? foil : paper;
+        im.setColorAt(im.count, p.col); p.idx = im.count++;
+      }
+      paper.instanceColor.needsUpdate = foil.instanceColor.needsUpdate = true;
+      moved = true;
+    }
+    if (moved) {
+      for (const p of pieces) (p.foil ? foil : paper).setMatrixAt(p.idx, cm.compose(p.p, p.q, cs.set(p.w, p.h, 1)));
+      paper.instanceMatrix.needsUpdate = true; foil.instanceMatrix.needsUpdate = true;
+    }
+    // streamers: verlet chains of paper ribbon; a strand that has come to rest stops simulating
     const damp = Math.exp(-1.3 * dt), gdt = g * 1.2 * dt * dt;
-    const tA = new THREE.Vector3(), side = new THREE.Vector3(), nrm = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0);
-    strands.forEach((s, si) => {
+    let strandsChanged = confDirty;
+    for (let si = strands.length - 1; si >= 0; si--) {
+      const s = strands[si];
+      if (s.settled) continue;
+      strandsChanged = true;
+      s.age += dt;
       const P = s.pos, O = s.old;
       for (let i = 0; i < NODES; i++) {
         const j = i * 3;
         let vx = (P[j] - O[j]) * damp, vy = (P[j + 1] - O[j + 1]) * damp, vz = (P[j + 2] - O[j + 2]) * damp;
-        if (s.fresh) { const f = 1 - i * 0.03; vx = s.v.x * dt * f; vy = s.v.y * dt * f; vz = s.v.z * dt * f; }
+        if (s.fresh) { const f = 1 - i * 0.012; vx = s.v.x * dt * f; vy = s.v.y * dt * f; vz = s.v.z * dt * f; }   // the whole ribbon is ejected, tail a bit slower
         O[j] = P[j]; O[j + 1] = P[j + 1]; O[j + 2] = P[j + 2];
-        P[j] += vx + Math.sin(t3 * 4 + i * 0.6 + s.tw) * 0.0015; P[j + 1] += vy - gdt; P[j + 2] += vz;
+        const flutter = P[j + 1] > surfaceY(P[j], P[j + 2]) + 0.02 ? Math.sin(t3 * 4 + i * 0.6 + s.tw) * 0.0015 : 0;   // only in the air
+        P[j] += vx + flutter; P[j + 1] += vy - gdt; P[j + 2] += vz;
         const sy = surfaceY(P[j], P[j + 2]);
-        if (P[j + 1] < sy && P[j + 1] > sy - 0.1) { P[j + 1] = sy; O[j] = P[j] - vx * 0.2; O[j + 2] = P[j + 2] - vz * 0.2; O[j + 1] = P[j + 1]; }
-        else if (P[j + 1] < 0.004) { P[j + 1] = 0.004; O[j + 1] = P[j + 1]; }
+        // touching down: friction stops it sliding
+        if (P[j + 1] < sy && P[j + 1] > sy - 0.1) { P[j + 1] = sy; O[j] = P[j] - vx * 0.15; O[j + 2] = P[j + 2] - vz * 0.15; O[j + 1] = P[j + 1]; }
+        else if (P[j + 1] < 0.004) { P[j + 1] = 0.004; O[j] = P[j] - vx * 0.15; O[j + 2] = P[j + 2] - vz * 0.15; O[j + 1] = P[j + 1]; }
       }
       s.fresh = false;
       for (let it = 0; it < 4; it++) for (let i = 1; i < NODES; i++) {
@@ -2009,24 +2045,40 @@ function create3D(THREE) {
         const dx = P[b] - P[a], dy = P[b + 1] - P[a + 1], dz = P[b + 2] - P[a + 2], d = Math.hypot(dx, dy, dz) || 1e-6, f = (d - s.seg) / d * 0.5;
         P[a] += dx * f; P[a + 1] += dy * f; P[a + 2] += dz * f; P[b] -= dx * f; P[b + 1] -= dy * f; P[b + 2] -= dz * f;
       }
-      // ribbon surface with a twist along its length
+      let maxMove = 0, out = s.age > 0.8;
       for (let i = 0; i < NODES; i++) {
-        const a = Math.max(0, i - 1) * 3, b = Math.min(NODES - 1, i + 1) * 3;
-        tA.set(P[b] - P[a], P[b + 1] - P[a + 1], P[b + 2] - P[a + 2]).normalize();
-        side.crossVectors(tA, up); if (side.lengthSq() < 1e-6) side.set(1, 0, 0); side.normalize();
-        nrm.crossVectors(side, tA);
-        const tw = s.tw + i * 0.85, c = Math.cos(tw), sn = Math.sin(tw);
-        const sxv = side.x * c + nrm.x * sn, syv = side.y * c + nrm.y * sn, szv = side.z * c + nrm.z * sn;
-        const hw = 0.012, o = ((si * NODES) + i) * 6, j = i * 3;
-        strPos[o] = P[j] + sxv * hw; strPos[o + 1] = P[j + 1] + syv * hw; strPos[o + 2] = P[j + 2] + szv * hw;
-        strPos[o + 3] = P[j] - sxv * hw; strPos[o + 4] = P[j + 1] - syv * hw; strPos[o + 5] = P[j + 2] - szv * hw;
-        const nx = nrm.x * c - side.x * sn, ny = nrm.y * c - side.y * sn, nz = nrm.z * c - side.z * sn;
-        strNor[o] = strNor[o + 3] = nx; strNor[o + 1] = strNor[o + 4] = ny; strNor[o + 2] = strNor[o + 5] = nz;
-        strCol[o] = strCol[o + 3] = s.col.r; strCol[o + 1] = strCol[o + 4] = s.col.g; strCol[o + 2] = strCol[o + 5] = s.col.b;
+        const j = i * 3;
+        maxMove = Math.max(maxMove, Math.abs(P[j] - O[j]) + Math.abs(P[j + 1] - O[j + 1]) + Math.abs(P[j + 2] - O[j + 2]));
+        if (out && !offScreen(P[j], P[j + 1], P[j + 2])) out = false;
       }
-    });
-    strGeo.setDrawRange(0, strands.length * (NODES - 1) * 6);
-    strGeo.attributes.position.needsUpdate = strGeo.attributes.normal.needsUpdate = strGeo.attributes.color.needsUpdate = true;
+      if (out) { strands.splice(si, 1); continue; }
+      s.still = maxMove < 0.0006 ? s.still + dt : 0;
+      if (s.still > 0.3) s.settled = true;
+    }
+    if (strandsChanged) {
+      // ribbon surface with a twist along its length
+      const tA = new THREE.Vector3(), side = new THREE.Vector3(), nrm = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0);
+      strands.forEach((s, si) => {
+        const P = s.pos;
+        for (let i = 0; i < NODES; i++) {
+          const a = Math.max(0, i - 1) * 3, b = Math.min(NODES - 1, i + 1) * 3;
+          tA.set(P[b] - P[a], P[b + 1] - P[a + 1], P[b + 2] - P[a + 2]).normalize();
+          side.crossVectors(tA, up); if (side.lengthSq() < 1e-6) side.set(1, 0, 0); side.normalize();
+          nrm.crossVectors(side, tA);
+          const tw = s.tw + i * 0.85, c = Math.cos(tw), sn = Math.sin(tw);
+          const sxv = side.x * c + nrm.x * sn, syv = side.y * c + nrm.y * sn, szv = side.z * c + nrm.z * sn;
+          const hw = 0.012, o = ((si * NODES) + i) * 6, j = i * 3;
+          strPos[o] = P[j] + sxv * hw; strPos[o + 1] = P[j + 1] + syv * hw; strPos[o + 2] = P[j + 2] + szv * hw;
+          strPos[o + 3] = P[j] - sxv * hw; strPos[o + 4] = P[j + 1] - syv * hw; strPos[o + 5] = P[j + 2] - szv * hw;
+          const nx = nrm.x * c - side.x * sn, ny = nrm.y * c - side.y * sn, nz = nrm.z * c - side.z * sn;
+          strNor[o] = strNor[o + 3] = nx; strNor[o + 1] = strNor[o + 4] = ny; strNor[o + 2] = strNor[o + 5] = nz;
+          strCol[o] = strCol[o + 3] = s.col.r; strCol[o + 1] = strCol[o + 4] = s.col.g; strCol[o + 2] = strCol[o + 5] = s.col.b;
+        }
+      });
+      strGeo.setDrawRange(0, strands.length * (NODES - 1) * 6);
+      strGeo.attributes.position.needsUpdate = strGeo.attributes.normal.needsUpdate = strGeo.attributes.color.needsUpdate = true;
+    }
+    confDirty = false;
   }
   // fireworks light up the room for a moment
   const fwLight = new THREE.DirectionalLight(0xffffff, 0); fwLight.position.set(0, 6, -3); scene.add(fwLight);
@@ -2249,6 +2301,8 @@ function create3D(THREE) {
       return { x: (tmp.x + 1) / 2 * W, y: (1 - tmp.y) / 2 * H };
     },
     popConfetti, clearConfetti, flash,
+    fx() { return { pieces: pieces.length, resting: pieces.filter(p => p.rest).length, strands: strands.length, settled: strands.filter(s => s.settled).length,
+      snap: pieces.filter(p => p.rest).map(p => p.p.toArray().concat(p.q.toArray()).join()).join('|') + '#' + strands.filter(s => s.settled).map(s => Array.from(s.pos).join()).join('|') }; },
     stepFx(dt) { t3 += dt; updateConfetti3D(dt); },
     loseContext() { const ext = renderer.getContext().getExtension('WEBGL_lose_context'); if (ext) { ext.loseContext(); setTimeout(() => ext.restoreContext(), 500); } },
     info() { return { pr: +pr.toFixed(2), calls: renderer.info.render.calls, tris: renderer.info.render.triangles, losses }; }
