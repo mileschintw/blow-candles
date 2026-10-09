@@ -217,7 +217,7 @@
     <input type="range" id="thSlider" min="5" max="95" step="1" data-t-aria="threshold" aria-label="吹熄門檻">
     <div class="scale"><span data-t="moreSens">← 更敏感</span><span data-t="harder">需要更用力 →</span></div>
     <p class="tip" data-t="tip">彩色條是「比周圍環境大聲多少」。吹氣讓它超過白線，蠟燭就會熄滅；淡灰線是最近環境噪音的高點，白線要放在它右邊。說話聲會被自動過濾。</p>
-    <button id="btnCalib" class="calib-btn" data-t="calibBtn">🎯 自動校準（建議先做一次）</button>
+    <button id="btnCalib" class="calib-btn" data-t="calibBtn">🎯 自動校準（吹不熄時再用）</button>
     <p class="tip" id="micProc" hidden></p>
   </div>
   <div class="field">
@@ -279,7 +279,7 @@ const STR = {
     numLabel: '要顯示的數字（最多 4 位）', numPh: '例如 25', cake: '蛋糕', cakeOff: '不要', cakeClassic: '經典', cakeChoc: '巧克力', cakeStraw: '草莓鮮奶油', threshold: '吹熄門檻',
     moreSens: '← 更敏感', harder: '需要更用力 →',
     tip: '彩色條是「比周圍環境大聲多少」。吹氣讓它超過白線，蠟燭就會熄滅；淡灰線是最近環境噪音的高點，白線要放在它右邊。說話聲會被自動過濾。',
-    calibBtn: '🎯 自動校準（建議先做一次）', msgLabel: '吹熄後的祝福文字', sfx: '音效', song: '全部吹熄後播放生日快樂歌',
+    calibBtn: '🎯 自動校準（吹不熄時再用）', msgLabel: '吹熄後的祝福文字', sfx: '音效', song: '全部吹熄後播放生日快樂歌',
     lang: '語言／Language', auto: '自動', done: '完成',
     intro: '允許使用麥克風後，<br>對著手機底部的麥克風吹氣，就能把蠟燭吹熄。', view: '畫面', v3d: '3D 立體', v2d: '2D 平面',
     start: '開始 🎂', noMic: '不使用麥克風（點蠟燭吹熄）', defMsg: '生日快樂！',
@@ -308,7 +308,7 @@ const STR = {
     numLabel: 'Number to show (up to 4 digits)', numPh: 'e.g. 25', cake: 'Cake', cakeOff: 'None', cakeClassic: 'Classic', cakeChoc: 'Chocolate', cakeStraw: 'Strawberry', threshold: 'Blow threshold',
     moreSens: '← More sensitive', harder: 'Needs a harder blow →',
     tip: 'The coloured bar shows how much louder than the room you are. Blow past the white line and the candles go out. The faint grey line is the recent peak of room noise; keep the white line to its right. Talking is filtered out automatically.',
-    calibBtn: '🎯 Auto-calibrate (recommended first)', msgLabel: 'Message once the candles are out', sfx: 'Sound effects', song: 'Play Happy Birthday when all are out',
+    calibBtn: '🎯 Auto-calibrate (only if blowing fails)', msgLabel: 'Message once the candles are out', sfx: 'Sound effects', song: 'Play Happy Birthday when all are out',
     lang: 'Language／語言', auto: 'Auto', done: 'Done',
     intro: 'Allow the microphone, then blow at the<br>bottom of your phone to put the candles out.', view: 'View', v3d: '3D', v2d: '2D (lighter)',
     start: 'Start 🎂', noMic: 'No microphone (tap the candles)', defMsg: 'Happy Birthday!',
@@ -358,12 +358,18 @@ function applyLang() {
 
 /* ---------------- settings ---------------- */
 const KEY = 'blow-candle-v2';
-const DEFAULTS = { mode: 'single', count: 5, number: '18', threshold: 40, msg: null, sfx: true, song: true, calibrated: false, render: '3d', cake: 'classic', lang: 'auto' };
+const DEFAULTS = { defaultsVer: 2, mode: 'number', count: 5, number: '18', threshold: 75, msg: null, sfx: true, song: true, calibrated: false, render: '3d', cake: 'classic', lang: 'auto' };
 const CAKE_FLAVOURS = ['classic', 'chocolate', 'strawberry'];
 const S = Object.assign({}, DEFAULTS);
 try {
   const raw = localStorage.getItem(KEY);
-  if (raw) Object.assign(S, JSON.parse(raw));
+  if (raw) {
+    const saved = JSON.parse(raw);
+    // the default threshold went from 40 to 75 once the phone's noise suppression was switched off (blows now come
+    // through much louder); an untouched old default moves with it, a calibrated or hand-picked value stays
+    if (!saved.defaultsVer && !saved.calibrated && saved.threshold === 40) saved.threshold = DEFAULTS.threshold;
+    Object.assign(S, saved, { defaultsVer: DEFAULTS.defaultsVer });
+  }
   else {   // v1 used a different threshold scale: keep everything except the threshold
     const old = JSON.parse(localStorage.getItem('blow-candle-v1') || 'null');
     if (old) { delete old.threshold; Object.assign(S, old); }
@@ -382,10 +388,10 @@ try {
   if (q.has('r')) S.render = q.get('r') === '2d' ? '2d' : '3d';
 } catch (e) {}
 function sanitize() {
-  S.mode = S.mode === 'number' ? 'number' : 'single';
+  S.mode = S.mode === 'single' ? 'single' : 'number';
   S.count = clamp(Math.round(+S.count) || 1, 1, 40);
   S.number = String(S.number || '').replace(/\D/g, '').slice(0, 4) || '1';
-  S.threshold = clamp(Math.round(+S.threshold) || 40, 5, 95);
+  S.threshold = clamp(Math.round(+S.threshold) || DEFAULTS.threshold, 5, 95);
   // the default wish follows the language; a saved copy of either default counts as 'default'
   S.msg = S.msg == null || DEFAULT_MSGS.includes(S.msg) ? null : String(S.msg).slice(0, 24);
   S.lang = ['zh', 'en'].includes(S.lang) ? S.lang : 'auto';

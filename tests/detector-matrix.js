@@ -2,7 +2,8 @@ const { chromium } = require('playwright-core');
 const path = require('path');
 const files = process.argv[2].split(',');
 // the detector doesn't depend on the view; run in 2D so no three.js download or software WebGL is involved
-const q0 = process.argv[3] || '';
+// the synthesized recordings were levelled for a threshold of 40; pin it so the matrix doesn't follow the app's default
+const q0 = process.argv[3] || '?th=40';
 const query = /[?&]r=/.test(q0) ? q0 : q0 + (q0.includes('?') ? '&' : '?') + 'r=2d';
 const secs = +(process.argv[4] || 8.5);
 async function run(name) {
