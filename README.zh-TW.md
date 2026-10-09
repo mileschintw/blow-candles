@@ -13,6 +13,7 @@ app 本身是單一個 [`index.html`](index.html)。旁邊的檔案：
 - [`en/index.html`](en/index.html) 是英文頁，由 [`tools/build-en.mjs`](tools/build-en.mjs) 從 `index.html` 產生。
 - [`manifest.webmanifest`](manifest.webmanifest)、[`manifest.en.webmanifest`](manifest.en.webmanifest)、[`sw.js`](sw.js)、`icons/` 和 `screenshots/` 讓它可以安裝成 app。
 - [`robots.txt`](robots.txt)、[`sitemap.xml`](sitemap.xml) 和 `social/` 給搜尋引擎和連結預覽使用。
+- [`google7b8777b763256a2e.html`](google7b8777b763256a2e.html) 是 Google Search Console 的網站驗證檔，請不要刪除。
 
 ## 功能
 
@@ -33,7 +34,7 @@ app 本身是單一個 [`index.html`](index.html)。旁邊的檔案：
   - 以「比環境噪音大多少」來判斷，所以安靜房間和吵雜餐廳的感覺一致。
   - 說話聲、敲到手機這類短暫聲音會被過濾掉。
   - 吹氣是累積計算的，忽大忽小的吹氣也能吹熄。
-- **吹熄門檻**：預設 75，可以在設定裡拖曳門檻線，調整吹熄的難易度。
+- **吹熄門檻**：預設 60，可以在設定裡拖曳門檻線，調整吹熄的難易度。
 - **自動校準（需要時再用）**：吹不熄的話，先安靜 2 秒、再吹 3 秒，就會自動設定門檻。
 - **音效**：吹熄的氣音與煙霧聲、點火聲；全部在瀏覽器即時合成，不用音檔。
 - **可以安裝成 app**：安裝後從主畫面開啟是全螢幕，沒有網路也能開。
@@ -75,7 +76,7 @@ node tools/build-en.mjs
 
 `node tools/build-en.mjs --check` 會在 `en/index.html` 沒有更新時回報錯誤。
 
-部署時請上傳整個資料夾，包括 `en/`、兩個 manifest、`sw.js`、`icons/`、`screenshots/`、`social/`、`robots.txt` 和 `sitemap.xml`。更動 app 檔案清單後，記得把 `sw.js` 裡的 `VERSION` 加一。
+部署時請上傳整個資料夾，包括 `en/`、兩個 manifest、`sw.js`、`icons/`、`screenshots/`、`social/`、`robots.txt`、`sitemap.xml` 和 Google 驗證檔。更動 app 檔案清單後，記得把 `sw.js` 裡的 `VERSION` 加一。
 
 3D 版本會從 jsDelivr 載入 three.js 0.160，需要網路連線與支援 import maps 的瀏覽器（iOS Safari 16.4 以上）。
 
@@ -88,7 +89,10 @@ node tools/build-en.mjs
 - 在 LINE、Facebook、Threads、X、Discord 分享連結時，會顯示 `social/og-zh.jpg` 或 `social/og-en.jpg`。
 - `robots.txt` 指向列出兩個網頁的 `sitemap.xml`。
 
-部署後，請到 [Google Search Console](https://search.google.com/search-console) 和 [Bing Webmaster Tools](https://www.bing.com/webmasters) 新增這個網站，並提交 `https://blow-candles.netlify.app/sitemap.xml`。
+網站已登記到搜尋引擎：
+
+- [Google Search Console](https://search.google.com/search-console)：網址前置字元資源 `https://blow-candles.netlify.app/`，用 `google7b8777b763256a2e.html` 驗證，並已提交 `sitemap.xml`。
+- [Bing Webmaster Tools](https://www.bing.com/webmasters)：從 Google Search Console 匯入，所以不需要另外的驗證檔。Bing 也會從 `robots.txt` 找到 sitemap；如果它的 Sitemaps 頁面還是空的，請在那裡提交 `https://blow-candles.netlify.app/sitemap.xml`。
 
 如果網站換了網址，要更新 `index.html` 的 `seo:start` 區塊、`tools/build-en.mjs` 的 `SITE`、`robots.txt` 和 `sitemap.xml` 裡的網址，再重新產生英文頁。
 
@@ -99,6 +103,7 @@ node tools/build-en.mjs
 | v1.0.0 | 2026-10-07 | 2D 畫面、單支與數字蠟燭、麥克風吹氣、靈敏度門檻、合成音效與生日歌 |
 | v2.0.0 | 2026-10-07 | 吹熄音效改成柔和的氣音；重寫吹氣偵測（環境噪音基準、說話過濾、累積計算）；自動校準 |
 | v3.0.0 | 2026-10-08 | 即時 3D 繪圖（three.js），預設 3D，可切換 2D |
+| v4.2.0 | 2026-10-09 | 預設門檻 60；安裝畫面的預覽圖改成中文、英文各一張 |
 | v4.1.0 | 2026-10-09 | 可安裝成 app，沒有網路也能開；英文頁 /en/；搜尋與分享用的資訊、sitemap；每個網頁顯示自己的語言 |
 | v4.0.0 | 2026-10-08 | 3D 針對手機最佳化；煙火、彩花與彩帶；慶祝時室內燈光轉暖；英文介面；經典、巧克力、草莓鮮奶油蛋糕或不顯示蛋糕；關閉手機通話用的麥克風處理，取得原始訊號；預設門檻 75 與數字蠟燭；自動校準改為需要時再用 |
 

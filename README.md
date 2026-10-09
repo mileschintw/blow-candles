@@ -13,6 +13,7 @@ The app itself is a single [`index.html`](index.html). Alongside it:
 - [`en/index.html`](en/index.html) is the English page, generated from `index.html` by [`tools/build-en.mjs`](tools/build-en.mjs).
 - [`manifest.webmanifest`](manifest.webmanifest), [`manifest.en.webmanifest`](manifest.en.webmanifest), [`sw.js`](sw.js), `icons/` and `screenshots/` make it installable.
 - [`robots.txt`](robots.txt), [`sitemap.xml`](sitemap.xml) and `social/` are for search engines and link previews.
+- [`google7b8777b763256a2e.html`](google7b8777b763256a2e.html) verifies the site in Google Search Console. Don't remove it.
 
 ## Features
 
@@ -33,7 +34,7 @@ The app itself is a single [`index.html`](index.html). Alongside it:
   - Measures how much louder the sound is than the room, so a quiet bedroom and a noisy restaurant feel the same.
   - Talking and short knocks on the phone are filtered out.
   - Blowing is accumulated over time, so an uneven, gusty blow still works.
-- **Threshold:** defaults to 75. Drag the threshold line in Settings to make blowing easier or harder.
+- **Threshold:** defaults to 60. Drag the threshold line in Settings to make blowing easier or harder.
 - **Auto calibration (if needed):** if blowing doesn't put the candles out, stay quiet for 2 seconds, then blow for 3, and the threshold is set for you.
 - **Sound:**
   - A breathy puff with a fading smoke hiss, and a match strike when relighting.
@@ -77,7 +78,7 @@ node tools/build-en.mjs
 
 `node tools/build-en.mjs --check` exits with an error if `en/index.html` is out of date.
 
-To host it, upload the whole folder, including `en/`, both manifests, `sw.js`, `icons/`, `screenshots/`, `social/`, `robots.txt` and `sitemap.xml`. After changing the list of app files, bump `VERSION` in `sw.js`.
+To host it, upload the whole folder, including `en/`, both manifests, `sw.js`, `icons/`, `screenshots/`, `social/`, `robots.txt`, `sitemap.xml` and the Google verification file. After changing the list of app files, bump `VERSION` in `sw.js`.
 
 The 3D view loads three.js 0.160 from jsDelivr. It needs a network connection and a browser with import map support (iOS Safari 16.4 or later).
 
@@ -90,7 +91,10 @@ Some processing is out of the page's reach. On iPhone, if the Mic Mode in Contro
 - Link previews (LINE, Facebook, Threads, X, Discord) show `social/og-zh.jpg` or `social/og-en.jpg`.
 - `robots.txt` points to `sitemap.xml`, which lists both pages.
 
-After deploying, add the site to [Google Search Console](https://search.google.com/search-console) and [Bing Webmaster Tools](https://www.bing.com/webmasters), and submit `https://blow-candles.netlify.app/sitemap.xml` in each.
+The site is registered in search engines:
+
+- [Google Search Console](https://search.google.com/search-console): a URL-prefix property for `https://blow-candles.netlify.app/`, verified by `google7b8777b763256a2e.html`, with `sitemap.xml` submitted.
+- [Bing Webmaster Tools](https://www.bing.com/webmasters): imported from Google Search Console, so it needs no verification file of its own. Bing also finds the sitemap through `robots.txt`; if its Sitemaps page is still empty, submit `https://blow-candles.netlify.app/sitemap.xml` there.
 
 If the site moves to another address, update the address in the `seo:start` block of `index.html`, in `SITE` in `tools/build-en.mjs`, and in `robots.txt` and `sitemap.xml`. Then rebuild the English page.
 
@@ -101,6 +105,7 @@ If the site moves to another address, update the address in the `seo:start` bloc
 | v1.0.0 | 2026-10-07 | 2D view, regular and number candles, microphone blowing, adjustable threshold, synthesized sounds and birthday song |
 | v2.0.0 | 2026-10-07 | Softer, breath-like blow-out sound; rebuilt blow detection (room-noise baseline, speech filtering, accumulated blowing); auto calibration |
 | v3.0.0 | 2026-10-08 | Real-time 3D rendering (three.js), 3D by default, switchable to 2D |
+| v4.2.0 | 2026-10-09 | Default threshold 60; the install dialog shows one Chinese and one English screenshot |
 | v4.1.0 | 2026-10-09 | Installable as an app, and opens offline; English page at /en/; search and share metadata, sitemap; each page shows its own language |
 | v4.0.0 | 2026-10-08 | Lighter 3D for phones; fireworks, confetti and streamers; warm room light during the celebration; English interface; classic, chocolate and strawberry cream cakes, or no cake; raw microphone signal with the phone's call processing off; threshold 75 and number candles by default; calibration only when needed |
 
