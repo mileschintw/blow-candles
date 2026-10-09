@@ -10,7 +10,7 @@ The whole app is a single [`index.html`](index.html) with no build step.
 
 ## Features
 
-- **Two kinds of candles:** regular candles (1–40) or number candles (up to 4 digits, such as `18` or `2026`).
+- **Two kinds of candles:** regular candles (1–40) or number candles (up to 4 digits, such as `18` or `2026`). The cake can be turned off in Settings to show the candles alone.
 - **Real-time 3D view (default):** switch views with the button at the top right, or pick 2D on the start screen before anything loads.
   - Rendered with three.js: a modelled cake and extruded number candles.
   - The light sits in the flames and flickers with them, candles cast shadows, the wax glows warm, and smoke rises after you blow.
@@ -29,6 +29,7 @@ The whole app is a single [`index.html`](index.html) with no build step.
   - `?num=25`: number candles
   - `?count=3`: number of regular candles
   - `?r=2d` / `?r=3d`: open in 2D or 3D
+  - `?cake=0`: candles without the cake
   - `?debug`: show detector readings
 
 ## Using and hosting it
