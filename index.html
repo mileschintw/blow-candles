@@ -1353,8 +1353,9 @@ function drawCake(amb) {
   });
   if (F.berries) {    // ring of strawberries around the edge of the top, back ones first
     const sz = G.cw * 0.042, list = [];
-    for (let i = 0; i < 14; i++) { const a = (i + 0.5) / 14 * Math.PI * 2; list.push([cx + Math.cos(a) * rx * 0.84, top + Math.sin(a) * ry * 0.8]); }
-    list.sort((a, b) => a[1] - b[1]).forEach(([x, y]) => drawBerry(x, y, sz));
+    // each berry stands with its foot on the ring (drawBerry's (x, y) is its middle), so back and front sit on the same circle
+    for (let i = 0; i < 14; i++) { const a = (i + 0.5) / 14 * Math.PI * 2, d = Math.sin(a); list.push([cx + Math.cos(a) * rx * 0.84, top + d * ry * 0.84, sz * (0.95 + 0.05 * d)]); }
+    list.sort((a, b) => a[1] - b[1]).forEach(([x, y, z]) => drawBerry(x, y - z * 0.55, z));
   }
   // warm candle light on the cake
   ctx.globalCompositeOperation = 'lighter';
