@@ -4,7 +4,7 @@
 
 一個在手機瀏覽器上運作的生日蛋糕網頁：對著手機麥克風吹氣，就能把蠟燭吹熄。
 
-**線上試玩：** https://vermillion-platypus-48259c.netlify.app/
+**線上試玩：** https://blow-candles.netlify.app/
 
 整個 app 是單一個 [`index.html`](index.html)，不需要建置步驟。
 

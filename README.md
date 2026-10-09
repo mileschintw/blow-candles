@@ -4,7 +4,7 @@
 
 A birthday cake for your phone's browser: blow at the microphone and the candles go out.
 
-**Live demo:** https://vermillion-platypus-48259c.netlify.app/
+**Live demo:** https://blow-candles.netlify.app/
 
 The whole app is a single [`index.html`](index.html) with no build step.
 
