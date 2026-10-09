@@ -1,0 +1,23 @@
+{
+  "id": "./en/",
+  "name": "Blow Candles",
+  "short_name": "Blow Candles",
+  "description": "Blow at your phone to put out the birthday candles.",
+  "lang": "en",
+  "start_url": "./en/",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0d0814",
+  "theme_color": "#0d0814",
+  "categories": ["entertainment", "lifestyle"],
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "screenshots": [
+    { "src": "screenshots/lit-en.jpg", "sizes": "780x1688", "type": "image/jpeg", "form_factor": "narrow", "label": "Candles lit" },
+    { "src": "screenshots/party-en.jpg", "sizes": "780x1688", "type": "image/jpeg", "form_factor": "narrow", "label": "The celebration" }
+  ]
+}
