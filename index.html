@@ -2026,19 +2026,59 @@ function create3D(THREE) {
     sprinkles.setColorAt(i, new THREE.Color(sprinkleCols[i % sprinkleCols.length]));
   }
   cakeG.add(sprinkles);
-  // strawberries standing tip-up in a ring on the cream, each on a little rosette of leaves
-  const berryGeo = new THREE.SphereGeometry(1, 14, 10);
-  { const bp = berryGeo.attributes.position;
-    for (let i = 0; i < bp.count; i++) { const y = bp.getY(i), k = 1 - 0.42 * (y + 1) / 2; bp.setXYZ(i, bp.getX(i) * k, y, bp.getZ(i) * k); }
-    berryGeo.computeVertexNormals(); }
+  // strawberries standing tip-up in a ring on the cream, each on a star of green sepals.
+  // Few polygons; what makes them read as strawberries is the profile (broad shoulders, soft point),
+  // a painted skin with rows of seeds and a bump map that sinks each seed into a little dimple.
+  const berryGeo = new THREE.LatheGeometry([[0, 0], [0.42, 0.01], [0.58, 0.07], [0.62, 0.17], [0.6, 0.3], [0.53, 0.46],
+    [0.42, 0.62], [0.29, 0.78], [0.15, 0.91], [0.05, 0.985], [0, 1]].map(([r, y]) => new THREE.Vector2(r, y)), 14);
+  const PROF = [[0, 0.42], [0.1, 0.6], [0.3, 0.6], [0.5, 0.5], [0.7, 0.33], [0.9, 0.12], [1, 0]];     // radius along the height, for seed spacing
+  const radAt = v => { for (let i = 1; i < PROF.length; i++) if (v <= PROF[i][0]) { const [a, ra] = PROF[i - 1], [b, rb] = PROF[i]; return ra + (rb - ra) * (v - a) / (b - a); } return 0; };
+  const seeds = [];
+  for (let row = 0; row < 9; row++) {
+    const v = 0.12 + row * 0.09, n = Math.max(3, Math.round(11 * radAt(v) / 0.6));
+    for (let k = 0; k < n; k++) seeds.push([(k + (row % 2) * 0.5 + rand(-0.12, 0.12)) / n, v + rand(-0.012, 0.012), radAt(v) / 0.6]);
+  }
+  const SW = 256, SH = 128;
+  const seedSpots = (g, draw) => { for (const [u, v, k] of seeds) for (const du of [-1, 0, 1]) draw(g, (u + du) * SW, (1 - v) * SH, k); };
+  const berryMap = canvasTex(SW, SH, (g, w, h) => {
+    const gr = g.createLinearGradient(0, h, 0, 0);       // canvas bottom = foot of the berry
+    gr.addColorStop(0, '#ff6a72'); gr.addColorStop(0.18, '#f0303f'); gr.addColorStop(0.6, '#e01f33'); gr.addColorStop(1, '#c8162c');
+    g.fillStyle = gr; g.fillRect(0, 0, w, h);
+    seedSpots(g, (g, x, y, k) => {
+      g.fillStyle = 'rgba(120,0,20,.5)'; g.beginPath(); g.ellipse(x, y, 6 / k, 4.6, 0, 0, 7); g.fill();
+      g.fillStyle = '#ffe27a'; g.beginPath(); g.ellipse(x, y + 0.8, 2.4 / k, 2.9, 0, 0, 7); g.fill();
+    });
+  });
+  const berryBump = canvasTex(SW, SH, (g, w, h) => {
+    g.fillStyle = '#808080'; g.fillRect(0, 0, w, h);
+    seedSpots(g, (g, x, y, k) => {
+      const gr = g.createRadialGradient(x, y, 0, x, y, 6.5);
+      gr.addColorStop(0, '#2a2a2a'); gr.addColorStop(1, 'rgba(128,128,128,0)');
+      g.save(); g.translate(x, y); g.scale(1 / k, 1); g.translate(-x, -y);
+      g.fillStyle = gr; g.beginPath(); g.arc(x, y, 6.5, 0, 7); g.fill(); g.restore();
+      g.fillStyle = '#a0a0a0'; g.beginPath(); g.ellipse(x, y + 0.8, 2.2 / k, 2.7, 0, 0, 7); g.fill();
+    });
+  }, false);
+  const calyxShape = new THREE.Shape();
+  for (let i = 0; i <= 12; i++) {                        // six pointed sepals
+    const a = i / 12 * Math.PI * 2, r = i % 2 ? 0.42 : 1, x = Math.cos(a) * r, y = Math.sin(a) * r;
+    i ? calyxShape.lineTo(x, y) : calyxShape.moveTo(x, y);
+  }
+  const calyxGeo = new THREE.ShapeGeometry(calyxShape); calyxGeo.rotateX(-Math.PI / 2);
+  { const cp = calyxGeo.attributes.position;              // tips curl up a little
+    for (let i = 0; i < cp.count; i++) { const x = cp.getX(i), z = cp.getZ(i); cp.setY(i, 0.22 * (x * x + z * z)); }
+    calyxGeo.computeVertexNormals(); }
   const NB = 14;
-  const berries = new THREE.InstancedMesh(berryGeo, new THREE.MeshStandardMaterial({ color: 0xd8203a, roughness: 0.28 }), NB);
-  const leaves = new THREE.InstancedMesh(new THREE.ConeGeometry(0.075, 0.02, 7), new THREE.MeshStandardMaterial({ color: 0x2f8f3a, roughness: 0.6 }), NB);
+  const berries = new THREE.InstancedMesh(berryGeo, new THREE.MeshStandardMaterial({ map: berryMap, bumpMap: berryBump, bumpScale: 1.5, roughness: 0.22 }), NB);
+  const leaves = new THREE.InstancedMesh(calyxGeo, new THREE.MeshStandardMaterial({ color: 0x4fae3c, roughness: 0.55, side: THREE.DoubleSide }), NB);
+  const tint = new THREE.Color();
   for (let i = 0; i < NB; i++) {
     const a = (i + 0.5) / NB * Math.PI * 2, r = 0.87, x = Math.sin(a) * r, z = Math.cos(a) * r, y = capY(r);
     q4.setFromEuler(e4.set(rand(-0.12, 0.12), rand(0, 6), rand(-0.12, 0.12)));
-    berries.setMatrixAt(i, m4.compose(v4.set(x, y + 0.07, z), q4, s4.set(0.058, 0.078, 0.058)));
-    leaves.setMatrixAt(i, m4.compose(v4.set(x, y + 0.008, z), q4.identity(), s4.set(1, 1, 1)));
+    berries.setMatrixAt(i, m4.compose(v4.set(x, y + 0.002, z), q4, s4.set(0.1, 0.14, 0.1)));
+    berries.setColorAt(i, tint.setRGB(1, rand(0.85, 1), rand(0.85, 1)));
+    q4.setFromEuler(e4.set(0, rand(0, 6), 0));
+    leaves.setMatrixAt(i, m4.compose(v4.set(x, y + 0.003, z), q4, s4.set(0.12, 0.12, 0.12)));
   }
   s4.set(1, 1, 1);
   const berryG = new THREE.Group(); berryG.add(berries, leaves); cakeG.add(berryG);
