@@ -1408,7 +1408,7 @@ function create3D(THREE, A) {
   const camera = new THREE.PerspectiveCamera(30, 1, 0.05, 80);
   const composer = new A.EffectComposer(renderer);
   composer.addPass(new A.RenderPass(scene, camera));
-  const bloom = new A.UnrealBloomPass(new THREE.Vector2(256, 256), 0.9, 0.6, 0.85);
+  const bloom = new A.UnrealBloomPass(new THREE.Vector2(256, 256), 0.55, 0.45, 0.92);
   composer.addPass(bloom);
   composer.addPass(new A.OutputPass());
 
@@ -1520,8 +1520,8 @@ function create3D(THREE, A) {
   }
   dots.receiveShadow = true; scene.add(dots);
   const sprinkleCols = ['#ff5d8f', '#ffd23f', '#3bceac', '#5e9cff', '#ffffff', '#c77dff'];
-  const sprinkles = new THREE.InstancedMesh(new THREE.CapsuleGeometry(0.0085, 0.034, 3, 6), M.sprinkle, 170);
-  for (let i = 0; i < 170; i++) {
+  const sprinkles = new THREE.InstancedMesh(new THREE.CapsuleGeometry(0.0085, 0.034, 3, 6), M.sprinkle, 110);
+  for (let i = 0; i < 110; i++) {
     const r = Math.sqrt(Math.random()) * 0.9, a = rand(0, Math.PI * 2);
     q4.setFromEuler(e4.set(Math.PI / 2, rand(0, Math.PI * 2), 0, 'YXZ'));
     sprinkles.setMatrixAt(i, m4.compose(v4.set(Math.sin(a) * r, capY(r) + 0.006, Math.cos(a) * r), q4, s4));
@@ -1539,7 +1539,8 @@ function create3D(THREE, A) {
   }
 
   // ---------- lights ----------
-  const hemi = new THREE.HemisphereLight(0x5d4c88, 0x1c0f08, 0.3); scene.add(hemi);
+  const hemi = new THREE.HemisphereLight(0x75627e, 0x2a1810, 0.45); scene.add(hemi);
+  const bounce = new THREE.DirectionalLight(0xffc9a0, 0.45); bounce.position.set(1.5, 2.2, 6); scene.add(bounce);   // warm light bouncing off the room / people
   const rim = new THREE.DirectionalLight(0x8494ff, 0.35); rim.position.set(-3, 4, -6); scene.add(rim);
   const main = new THREE.PointLight(0xffa24c, 0, 0, 2);
   main.castShadow = true; main.shadow.mapSize.set(512, 512); main.shadow.bias = -0.002; main.shadow.normalBias = 0.015;
@@ -1577,7 +1578,7 @@ function create3D(THREE, A) {
       float core = (1.0 - smoothstep(0.0, 0.6, d)) * smoothstep(0.06, 0.24, y) * (1.0 - smoothstep(0.42, 0.78, y));
       vec3 col = mix(vec3(1.0, 0.32, 0.05), vec3(1.0, 0.68, 0.26), smoothstep(0.1, 0.65, 1.0 - d));
       col = mix(col, vec3(1.0, 0.94, 0.78), core);
-      col *= 1.5 + 2.6 * core;
+      col *= 1.25 + 1.7 * core;
       float blue = (1.0 - smoothstep(0.0, 0.17, y)) * (1.0 - smoothstep(0.25, 1.0, d));
       col = mix(col, vec3(0.22, 0.42, 1.0) * 1.3, blue * 0.85);
       a *= mix(1.0, 0.6, blue);
@@ -1658,7 +1659,7 @@ function create3D(THREE, A) {
       const own = [];      // things to dispose
       let topY, wx = 0, fh, mats;
       if (c.type === 'stick') {
-        const r = clamp(c.w / G.cw * R * 0.62, 0.02, 0.07), h = clamp(c.h / G.cw * 2 * R * 0.95, 0.28, 0.72);
+        const r = clamp(c.w / G.cw * R * 0.72, 0.022, 0.075), h = clamp(c.h / G.cw * 2 * R * 0.95, 0.28, 0.72);
         const tex = stripeTex(c.color); tex.repeat.set(1, 0.25 * h / (1.15 * 2 * Math.PI * r));
         const side = new THREE.MeshPhysicalMaterial({ map: tex, roughness: 0.4, sheen: 0.35, sheenColor: new THREE.Color(0xffffff),
           emissive: new THREE.Color(0xff8a3d), emissiveMap: sssTex, emissiveIntensity: 0 });
@@ -1668,7 +1669,7 @@ function create3D(THREE, A) {
         const mesh = new THREE.Mesh(geo, [side, topM, topM]); mesh.position.y = h / 2;
         mesh.castShadow = true; mesh.receiveShadow = true; sub.add(mesh);
         own.push(geo, side, topM, tex);
-        topY = h; fh = clamp(0.12 + r * 1.6, 0.13, 0.24); mats = [side, topM];
+        topY = h; fh = clamp(0.15 + r * 2.2, 0.17, 0.3); mats = [side, topM];
       } else {
         const dh = clamp(c.dh / G.cw * 2 * R, 0.25, 1.1);
         const dg = digitGeo(c.ch);
@@ -1678,7 +1679,7 @@ function create3D(THREE, A) {
         const mesh = new THREE.Mesh(dg.geo, mat); mesh.scale.setScalar(dh);
         mesh.castShadow = true; mesh.receiveShadow = true; sub.add(mesh);
         own.push(mat, tex);
-        topY = dg.top * dh; wx = dg.wickX * dh; fh = clamp(dh * 0.22, 0.14, 0.28); mats = [mat];
+        topY = dg.top * dh; wx = dg.wickX * dh; fh = clamp(dh * 0.26, 0.17, 0.32); mats = [mat];
       }
       const wickH = Math.max(0.045, fh * 0.28);
       const wg = new THREE.CylinderGeometry(0.0055, 0.0075, wickH, 6); own.push(wg);
@@ -1708,7 +1709,7 @@ function create3D(THREE, A) {
     const aspect = W / Math.max(1, H);
     camera.aspect = aspect;
     const tanV = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
-    const dist = Math.max(1.66 / (tanV * aspect), 1.25 / tanV);
+    const dist = Math.max(1.52 / (tanV * aspect), 1.15 / tanV);
     const yaw = Math.sin(t3 * 0.11) * 0.06 + yawDrag, pitch = 0.4 + pitchDrag;
     camera.position.set(Math.sin(yaw) * Math.cos(pitch) * dist, target.y + Math.sin(pitch) * dist, Math.cos(yaw) * Math.cos(pitch) * dist);
     camera.lookAt(target);
@@ -1758,7 +1759,7 @@ function create3D(THREE, A) {
         b.flame.scale.set(b.fh * 0.46 * s * (1 - Math.min(wind, 1.2) * 0.15), b.fh * hs, 1);
         b.flame.rotation.y = Math.atan2(camera.position.x - b.tipW.x, camera.position.z - b.tipW.z);
       }
-      b.halo.material.opacity = s * 0.42 * flick;
+      b.halo.material.opacity = s * 0.3 * flick;
       b.halo.scale.setScalar(b.fh * (2.4 + 0.5 * flick));
       b.ember.material.opacity = c.ember * 0.95; b.ember.scale.setScalar(0.03 + 0.035 * c.ember);
       for (const m of b.mats) m.emissiveIntensity = s * 1.1 * flick;
@@ -1772,7 +1773,7 @@ function create3D(THREE, A) {
       tot += k; px += b.tipW.x * k; py += (b.tipW.y + b.fh * 0.35) * k; pz += b.tipW.z * k;
     }
     // lights follow the flames
-    const LI = 1.5;
+    const LI = 1.15;
     if (tot > 0.001) { main.position.set(px / tot, py / tot, pz / tot); main.intensity = LI * Math.pow(tot, 0.85) * 0.6; }
     else main.intensity = 0;
     const order = C3.map((b, i) => i).sort((i, j) => C3[i].tipW.x - C3[j].tipW.x);
@@ -1783,8 +1784,9 @@ function create3D(THREE, A) {
       if (s > 0.001) { l.position.set(x / s, y / s, z / s); l.intensity = LI * Math.pow(s, 0.85) * 0.4; } else l.intensity = 0;
     });
     const amb = st.ambient;
-    const roomTarget = st.celebrated ? 0.75 : 0.28;          // room light comes up after the wish
+    const roomTarget = st.celebrated ? 0.9 : 0.4;          // room light comes up after the wish
     hemi.intensity += (roomTarget - hemi.intensity) * Math.min(1, dt * 0.8);
+    bounce.intensity = 0.22 + 0.3 * amb + (st.celebrated ? 0.3 : 0);
     for (const sp of bokeh3) sp.material.opacity = sp.userData.base * (0.35 + 0.65 * amb) * (0.8 + 0.2 * Math.sin(t3 * 0.7 + sp.userData.ph));
     // particles
     for (let i = smoke3.list.length - 1; i >= 0; i--) {
