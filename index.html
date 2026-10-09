@@ -1468,7 +1468,7 @@ function create3D(THREE, A) {
   const M = {
     table: new THREE.MeshStandardMaterial({ map: woodTex, roughness: 0.6 }),
     plate: new THREE.MeshPhysicalMaterial({ color: 0xf4eff3, roughness: 0.16, clearcoat: 1, clearcoatRoughness: 0.06, side: THREE.DoubleSide }),
-    sponge: new THREE.MeshPhysicalMaterial({ color: 0xf29dbb, roughness: 0.62, sheen: 0.7, sheenColor: new THREE.Color(0xffd6e4), sheenRoughness: 0.5 }),
+    sponge: new THREE.MeshPhysicalMaterial({ color: 0xf8b6cb, roughness: 0.62, sheen: 0.7, sheenColor: new THREE.Color(0xffd6e4), sheenRoughness: 0.5 }),
     glaze: new THREE.MeshPhysicalMaterial({ color: 0xfff6f7, roughness: 0.2, clearcoat: 0.8, clearcoatRoughness: 0.12, side: THREE.DoubleSide }),
     pearl: new THREE.MeshPhysicalMaterial({ color: 0xfffafc, roughness: 0.12, iridescence: 0.8, iridescenceIOR: 1.5, clearcoat: 1 }),
     dot: new THREE.MeshStandardMaterial({ roughness: 0.3 }),
@@ -1530,17 +1530,17 @@ function create3D(THREE, A) {
   sprinkles.receiveShadow = true; scene.add(sprinkles);
   // bokeh fairy lights far behind
   const bokeh3 = [];
-  for (let i = 0; i < 26; i++) {
+  for (let i = 0; i < 34; i++) {
     const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: bokehTex, color: new THREE.Color(Math.random() < 0.7 ? 0xffb070 : 0xff7fa8),
       blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, fog: false }));
-    sp.position.set(rand(-8, 8), rand(0.8, 6), rand(-14, -9)); sp.scale.setScalar(rand(0.5, 1.5));
-    sp.userData.base = rand(0.12, 0.35); sp.userData.ph = rand(0, 6);
+    sp.position.set(rand(-9, 9), rand(0.6, 4.2), rand(-16, -10)); sp.scale.setScalar(rand(0.25, 0.75));
+    sp.userData.base = rand(0.06, 0.2); sp.userData.ph = rand(0, 6);
     scene.add(sp); bokeh3.push(sp);
   }
 
   // ---------- lights ----------
   const hemi = new THREE.HemisphereLight(0x75627e, 0x2a1810, 0.45); scene.add(hemi);
-  const bounce = new THREE.DirectionalLight(0xffc9a0, 0.45); bounce.position.set(1.5, 2.2, 6); scene.add(bounce);   // warm light bouncing off the room / people
+  const bounce = new THREE.DirectionalLight(0xffd2b0, 0.6); bounce.position.set(1.5, 2.2, 6); scene.add(bounce);   // warm light bouncing off the room / people
   const rim = new THREE.DirectionalLight(0x8494ff, 0.35); rim.position.set(-3, 4, -6); scene.add(rim);
   const main = new THREE.PointLight(0xffa24c, 0, 0, 2);
   main.castShadow = true; main.shadow.mapSize.set(512, 512); main.shadow.bias = -0.002; main.shadow.normalBias = 0.015;
@@ -1654,7 +1654,8 @@ function create3D(THREE, A) {
     for (const c of cands) {
       const u = (c.x - G.cx) / G.rx, v = (c.y - G.top) / G.ry;
       const sub = new THREE.Group();
-      sub.position.set(u * R * 0.97, capY(Math.hypot(u, v) * R) - 0.004, v * R * 0.97);
+      const spread = c.type === 'digit' ? 1.1 : 0.97;      // bevelled 3D digits need a little more room
+      sub.position.set(u * R * spread, capY(Math.hypot(u, v) * R) - 0.004, v * R * 0.97);
       group.add(sub);
       const own = [];      // things to dispose
       let topY, wx = 0, fh, mats;
@@ -1671,7 +1672,7 @@ function create3D(THREE, A) {
         own.push(geo, side, topM, tex);
         topY = h; fh = clamp(0.15 + r * 2.2, 0.17, 0.3); mats = [side, topM];
       } else {
-        const dh = clamp(c.dh / G.cw * 2 * R, 0.25, 1.1);
+        const dh = clamp(c.dh / G.cw * 2 * R * 0.92, 0.25, 1.0);
         const dg = digitGeo(c.ch);
         const tex = stripeTex(c.color); tex.repeat.set(2.6, 2.6);
         const mat = new THREE.MeshPhysicalMaterial({ map: tex, roughness: 0.36, sheen: 0.5, sheenColor: new THREE.Color(0xffffff),
@@ -1764,7 +1765,7 @@ function create3D(THREE, A) {
       b.ember.material.opacity = c.ember * 0.95; b.ember.scale.setScalar(0.03 + 0.035 * c.ember);
       for (const m of b.mats) m.emissiveIntensity = s * 1.1 * flick;
       // smoke / sparks on state changes
-      if (b.prevLit && !c.lit) for (let i = 0; i < 16; i++) emitSmoke(b.tipW, true, c.bias);
+      if (b.prevLit && !c.lit && c.ember > 0.5) for (let i = 0; i < 16; i++) emitSmoke(b.tipW, true, c.bias);
       if (!b.prevLit && c.lit) for (let i = 0; i < 12; i++) spark3.list.push({ x: b.tipW.x, y: b.tipW.y, z: b.tipW.z, vx: rand(-0.4, 0.4), vy: rand(0.2, 0.9), vz: rand(-0.4, 0.4), life: 0, max: rand(0.25, 0.6) });
       b.prevLit = c.lit;
       if (c.smokeT > 0 && Math.random() < dt * 20 * (c.smokeT / 2.4)) emitSmoke(b.tipW, false, c.bias);
@@ -1786,7 +1787,7 @@ function create3D(THREE, A) {
     const amb = st.ambient;
     const roomTarget = st.celebrated ? 0.9 : 0.4;          // room light comes up after the wish
     hemi.intensity += (roomTarget - hemi.intensity) * Math.min(1, dt * 0.8);
-    bounce.intensity = 0.22 + 0.3 * amb + (st.celebrated ? 0.3 : 0);
+    bounce.intensity = 0.3 + 0.45 * amb + (st.celebrated ? 0.35 : 0);
     for (const sp of bokeh3) sp.material.opacity = sp.userData.base * (0.35 + 0.65 * amb) * (0.8 + 0.2 * Math.sin(t3 * 0.7 + sp.userData.ph));
     // particles
     for (let i = smoke3.list.length - 1; i >= 0; i--) {
