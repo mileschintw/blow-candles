@@ -2,9 +2,11 @@
 
 [English](README.md) | **繁體中文**
 
-一個在手機瀏覽器上運作的生日蛋糕網頁：對著手機麥克風吹氣，就能把蠟燭吹熄。
+免費的線上生日蛋糕，在手機瀏覽器上就能玩：對著手機麥克風吹氣，就能把生日蠟燭吹熄。不用下載 App，也可以安裝到主畫面當 App 用。
 
-**線上試玩：** https://blow-candles.netlify.app/
+**線上試玩：** https://blow-candles.netlify.app/ （繁體中文）· https://blow-candles.netlify.app/en/ （English）
+
+[![吹蠟燭：手機上的 3D 生日蛋糕，插著點燃的數字蠟燭 18，以及吹熄後的慶祝畫面](social/github-preview.png)](https://blow-candles.netlify.app/)
 
 app 本身是單一個 [`index.html`](index.html)，不需要建置步驟；[`manifest.webmanifest`](manifest.webmanifest)、[`sw.js`](sw.js)、`icons/` 和 `screenshots/` 讓它可以安裝成 app。
 

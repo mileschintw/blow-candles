@@ -2,9 +2,11 @@
 
 **English** | [繁體中文](README.zh-TW.md)
 
-A birthday cake for your phone's browser: blow at the microphone and the candles go out.
+A free online birthday cake for your phone's browser: blow into the microphone and the birthday candles go out. There's no app to download, though it can be installed like one.
 
-**Live demo:** https://blow-candles.netlify.app/
+**Live demo:** https://blow-candles.netlify.app/en/ (English) · https://blow-candles.netlify.app/ (繁體中文)
+
+[![Blow Candles: a 3D birthday cake with a lit number 18 candle, and the celebration after blowing it out](social/github-preview.png)](https://blow-candles.netlify.app/en/)
 
 The app itself is a single [`index.html`](index.html) with no build step. [`manifest.webmanifest`](manifest.webmanifest), [`sw.js`](sw.js), `icons/` and `screenshots/` make it installable.
 
