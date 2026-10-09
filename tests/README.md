@@ -25,8 +25,10 @@ python -m http.server 8765 --directory ..
 Check which sounds blow the candles out: blowing, talking, knocking and background noise.
 
 ```bash
-node detector-matrix.js quiet,cafe,quiet_blow_medium,quiet_talk_loud,quiet_tap "?count=5"
+node detector-matrix.js quiet,cafe,quiet_blow_medium,quiet_talk_loud,quiet_tap "?count=5&th=40"
 ```
+
+The synthesized recordings are levelled for a threshold of 40, lower than the app's default of 75, so keep `th=40` in the query. Without a query, the script uses `?th=40`.
 
 Check auto calibration, both when it succeeds and when it hears no blow:
 
