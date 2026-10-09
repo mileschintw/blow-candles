@@ -429,7 +429,7 @@ function applyLang() {
 
 /* ---------------- settings ---------------- */
 const KEY = 'blow-candle-v2';
-const DEFAULTS = { defaultsVer: 3, mode: 'number', count: 5, number: '18', threshold: 75, msg: null, sfx: true, song: true, calibrated: false, render: '3d', cake: 'classic', lang: 'auto' };
+const DEFAULTS = { defaultsVer: 4, mode: 'number', count: 5, number: '18', threshold: 60, msg: null, sfx: true, song: true, calibrated: false, render: '3d', cake: 'classic', lang: 'auto' };
 const CAKE_FLAVOURS = ['classic', 'chocolate', 'strawberry'];
 const S = Object.assign({}, DEFAULTS);
 try {
@@ -439,6 +439,8 @@ try {
     // the default threshold went from 40 to 75 once the phone's noise suppression was switched off (blows now come
     // through much louder); an untouched old default moves with it, a calibrated or hand-picked value stays
     if (!saved.defaultsVer && !saved.calibrated && saved.threshold === 40) saved.threshold = DEFAULTS.threshold;
+    // v4 lowered the default from 75 to 60 so blowing out is easier; an untouched 75 follows
+    if ((saved.defaultsVer || 0) < 4 && !saved.calibrated && saved.threshold === 75) saved.threshold = DEFAULTS.threshold;
     // until v3, "auto" followed the browser language; returning visitors keep the language they were seeing
     if ((saved.defaultsVer || 0) < 3 && !['zh', 'en'].includes(saved.lang)) saved.lang = detectLang();
     Object.assign(S, saved, { defaultsVer: DEFAULTS.defaultsVer });
