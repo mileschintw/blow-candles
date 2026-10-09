@@ -7,7 +7,22 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>吹蠟燭</title>
+<!-- seo:start (tools/build-en.mjs swaps this block for the English page) -->
+<title>吹蠟燭｜線上生日蛋糕，對著手機吹氣吹熄蠟燭</title>
+<meta name="description" content="免費的線上生日蛋糕：不用下載 App，打開網頁對著手機麥克風吹氣，就能吹熄生日蠟燭。數字蠟燭、3D 蛋糕、生日快樂歌、煙火與彩花慶祝，也能安裝到主畫面。">
+<link rel="canonical" href="https://blow-candles.netlify.app/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="吹蠟燭 Blow Candles">
+<meta property="og:title" content="吹蠟燭｜對著手機吹氣，把生日蠟燭吹熄">
+<meta property="og:description" content="免費線上生日蛋糕，不用下載 App。數字蠟燭、3D 蛋糕、生日快樂歌與彩花慶祝。">
+<meta property="og:url" content="https://blow-candles.netlify.app/">
+<meta property="og:image" content="https://blow-candles.netlify.app/social/og-zh.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="手機上的 3D 生日蛋糕，插著點燃的數字蠟燭 18">
+<meta property="og:locale" content="zh_TW">
+<meta name="twitter:card" content="summary_large_image">
+<!-- seo:end -->
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
@@ -287,7 +302,7 @@ const rand = (a, b) => a + Math.random() * (b - a);
 /* ---------------- language: Traditional Chinese for zh-TW/HK/MO/Hant browsers, English for everyone else ---------------- */
 const STR = {
   zh: {
-    appName: '吹蠟燭', relight: '🔥 重新點燃', relightAria: '全部重新點燃', renderAria: '切換 2D／3D 畫面', settings: '設定',
+    appName: '吹蠟燭', docTitle: '吹蠟燭｜線上生日蛋糕，對著手機吹氣吹熄蠟燭', relight: '🔥 重新點燃', relightAria: '全部重新點燃', renderAria: '切換 2D／3D 畫面', settings: '設定',
     meterAria: '吹氣強度，點一下調整靈敏度', sens: '靈敏度', wish: '許個願吧 ✨', again: '再點一次 🔥',
     candleStyle: '蠟燭樣式', single: '單支蠟燭', number: '數字蠟燭', count: '蠟燭數量（1–40）', fewer: '減少', more: '增加',
     numLabel: '要顯示的數字（最多 4 位）', numPh: '例如 25', cake: '蛋糕', cakeOff: '不要', cakeClassic: '經典', cakeChoc: '巧克力', cakeStraw: '草莓鮮奶油', threshold: '吹熄門檻',
@@ -318,7 +333,7 @@ const STR = {
     proc_echoCancellation: '回音消除', proc_noiseSuppression: '降噪', proc_autoGainControl: '自動增益', proc_voiceIsolation: '人聲隔離',
   },
   en: {
-    appName: 'Blow the Candles', relight: '🔥 Relight', relightAria: 'Relight all candles', renderAria: 'Switch between 2D and 3D', settings: 'Settings',
+    appName: 'Blow the Candles', docTitle: 'Blow Candles – Blow Out Birthday Candles Online with Your Phone', relight: '🔥 Relight', relightAria: 'Relight all candles', renderAria: 'Switch between 2D and 3D', settings: 'Settings',
     meterAria: 'Blow strength. Tap to adjust sensitivity', sens: 'Sensitivity', wish: 'Make a wish ✨', again: 'Light them again 🔥',
     candleStyle: 'Candle style', single: 'Candles', number: 'Number candles', count: 'Number of candles (1–40)', fewer: 'Fewer', more: 'More',
     numLabel: 'Number to show (up to 4 digits)', numPh: 'e.g. 25', cake: 'Cake', cakeOff: 'None', cakeClassic: 'Classic', cakeChoc: 'Chocolate', cakeStraw: 'Strawberry', threshold: 'Blow threshold',
@@ -361,7 +376,7 @@ const wishText = () => S.msg == null ? tr('defMsg') : S.msg;
 function applyLang() {
   LANG = S.lang === 'auto' ? detectLang() : S.lang;
   document.documentElement.lang = LANG === 'zh' ? 'zh-Hant' : 'en';
-  document.title = tr('appName');
+  document.title = tr('docTitle');
   document.querySelectorAll('[data-t]').forEach(el => { el.textContent = tr(el.dataset.t); });
   document.querySelectorAll('[data-t-html]').forEach(el => { el.innerHTML = tr(el.dataset.tHtml); });
   document.querySelectorAll('[data-t-aria]').forEach(el => el.setAttribute('aria-label', tr(el.dataset.tAria)));
