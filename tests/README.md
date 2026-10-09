@@ -1,33 +1,43 @@
-# 測試
+# Tests
 
-用 Chrome 的假麥克風（`--use-file-for-fake-audio-capture`），把合成的錄音餵給 app，檢查吹氣偵測與畫面。
+These tests feed synthesized recordings into the app through Chrome's fake microphone (`--use-file-for-fake-audio-capture`) to check blow detection and rendering.
+
+## Setup
+
+Install Playwright and generate the test recordings into `wav/`:
 
 ```bash
 npm i playwright-core@1.48.2
+```
+
+```bash
 python gen_audio.py
+```
+
+In a separate terminal, serve the app:
+
+```bash
 python -m http.server 8765 --directory ..
 ```
 
-第一行安裝 Playwright，第二行產生測試錄音到 `wav/`，第三行在另一個終端機執行，提供網頁。
+## Running the tests
 
-接著執行以下測試。
-
-吹氣、說話、敲擊、環境噪音，各情境的熄滅結果：
+Check which sounds blow the candles out: blowing, talking, knocking and background noise.
 
 ```bash
 node detector-matrix.js quiet,cafe,quiet_blow_medium,quiet_talk_loud,quiet_tap "?count=5"
 ```
 
-自動校準成功與失敗兩種流程：
+Check auto calibration, both when it succeeds and when it hears no blow:
 
 ```bash
 node calibration.js
 ```
 
-3D 畫面截圖、點擊與吹熄：
+Take 3D screenshots and test tapping and blowing:
 
 ```bash
 node render-3d.js "?count=5&q=0&r=3d" shot quiet tap,blow
 ```
 
-Chrome 位置可用 `CHROME` 環境變數指定（預設為 Windows 的安裝路徑）。
+Set the `CHROME` environment variable to point at your Chrome executable; it defaults to the Windows install path.
