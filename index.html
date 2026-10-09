@@ -1369,15 +1369,22 @@ function drawFlame(c, t) {
 }
 
 // in 3D mode the 2D canvas is the backdrop behind the (transparent) WebGL canvas: night sky + fireworks
-let backdropClean = false;   // the static sky only needs repainting while fireworks are going
+let backdropClean = false, backdropWarm = 0;   // the static sky only needs repainting while fireworks are going or the light changes
 function renderOverlay() {
   const busy = FW.parts.length || FW.shells.length || FW.flashes.length || FW.puffs.length;
-  if (!busy && backdropClean) return;
-  backdropClean = !busy;
+  const w = st.warm;
+  if (!busy && backdropClean && w === backdropWarm) return;
+  backdropClean = !busy; backdropWarm = w;
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   const bg = ctx.createLinearGradient(0, 0, 0, H);
-  bg.addColorStop(0, '#08040d'); bg.addColorStop(0.55, '#0d0711'); bg.addColorStop(1, '#070409');
+  bg.addColorStop(0, `rgb(${mixRGB([8, 4, 13], [50, 34, 26], w)})`); bg.addColorStop(0.55, `rgb(${mixRGB([13, 7, 17], [60, 41, 30], w)})`);
+  bg.addColorStop(1, `rgb(${mixRGB([7, 4, 9], [30, 20, 15], w)})`);
   ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
+  if (w > 0.001) {      // lamp light from above
+    const lamp = ctx.createRadialGradient(W / 2, -H * 0.1, 0, W / 2, -H * 0.1, Math.max(W, H) * 1.1);
+    lamp.addColorStop(0, `rgba(255,182,110,${0.3 * w})`); lamp.addColorStop(1, 'rgba(255,160,90,0)');
+    ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = lamp; ctx.fillRect(0, 0, W, H); ctx.globalCompositeOperation = 'source-over';
+  }
   drawFireworks(ctx);
 }
 
@@ -1940,6 +1947,10 @@ function create3D(THREE) {
   const hemi = new THREE.HemisphereLight(0x75627e, 0x2a1810, 0.45); scene.add(hemi);
   const bounce = new THREE.DirectionalLight(0xffe4d2, 0.6); bounce.position.set(1.5, 2.2, 6); scene.add(bounce);   // warm light bouncing off the room / people
   const rim = new THREE.DirectionalLight(0x8494ff, 0.35); rim.position.set(-3, 4, -6); scene.add(rim);
+  // [candlelit night, warm room light] for the celebration
+  const C2 = (a, b) => [new THREE.Color(a), new THREE.Color(b)];
+  const HEMI_SKY = C2(0x75627e, 0xffc48e), HEMI_GND = C2(0x2a1810, 0x6a4228), BOUNCE_C = C2(0xffe4d2, 0xffcf9e),
+    RIM_C = C2(0x8494ff, 0xffc2b8), FOG_C = C2(0x070409, 0x221710);
   const flameLight = new THREE.PointLight(0xffa24c, 0, 0, 2); scene.add(flameLight);
   // warm haze around the flames (the atmosphere bloom used to give)
   const haze = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: 0xff8a3a, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0 }));
@@ -2365,10 +2376,13 @@ function create3D(THREE) {
     }
     s4.set(1, 1, 1);
     shadows.instanceMatrix.needsUpdate = true;
-    const amb = st.ambient;
-    const roomTarget = st.celebrated ? 0.9 : 0.4;          // room light comes up after the wish
-    hemi.intensity += (roomTarget - hemi.intensity) * Math.min(1, dt * 0.8);
-    bounce.intensity = 0.45 + 0.5 * amb + (st.celebrated ? 0.35 : 0);
+    const amb = st.ambient, w = st.warm;
+    // room light: violet night while the candles burn and just after; a warm (~2800 K) lamp comes on for the celebration
+    hemi.intensity = 0.4 + 0.55 * w;
+    hemi.color.lerpColors(HEMI_SKY[0], HEMI_SKY[1], w); hemi.groundColor.lerpColors(HEMI_GND[0], HEMI_GND[1], w);
+    bounce.intensity = 0.45 + 0.5 * amb + 0.5 * w; bounce.color.lerpColors(BOUNCE_C[0], BOUNCE_C[1], w);
+    rim.intensity = 0.35 - 0.15 * w; rim.color.lerpColors(RIM_C[0], RIM_C[1], w);
+    scene.fog.color.lerpColors(FOG_C[0], FOG_C[1], w);
     flushPoints(bokeh3, p => [p.s, p.base * (0.35 + 0.65 * amb) * (0.8 + 0.2 * Math.sin(t3 * 0.7 + p.ph)), p.col]);
     // particles
     for (let i = smoke3.list.length - 1; i >= 0; i--) {
