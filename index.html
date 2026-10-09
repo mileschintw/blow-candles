@@ -24,6 +24,7 @@
     overflow:hidden;overscroll-behavior:none;touch-action:manipulation;-webkit-user-select:none;user-select:none}
   button{font:inherit;color:inherit;cursor:pointer}
   canvas#scene,canvas#scene3d{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none}
+  canvas#scene3d{pointer-events:none}
   .top .right{display:flex;gap:8px}
   .icon-btn.mode{padding:0 14px;font-size:15px;font-weight:700;letter-spacing:.04em}
   .toast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom) + 80px);transform:translateX(-50%);z-index:9;
@@ -352,6 +353,29 @@ function sfxWhoomp() {
     vol: 0.07, attack: 0.05, decay: 0.08, dur: 0.25 });
   muteDetector(end);
 }
+// fireworks: rising whoosh, a boom that arrives a moment after the flash, crackling stars
+function sfxLaunch() {
+  if (!S.sfx || !AC) return;
+  noiseLayer(AC.currentTime, { filters: [{ type: 'bandpass', f0: 500, f1: 2400, q: 1.2, sweep: 1.1 }], vol: 0.04, attack: 0.2, hold: 0.5, decay: 0.15, dur: 1.1 });
+}
+function sfxBoom(type, life) {
+  if (!S.sfx || !AC) return;
+  const t = AC.currentTime + rand(0.12, 0.3);
+  const e1 = noiseLayer(t, { filters: [{ type: 'lowpass', f0: 800, f1: 110, q: 0.7, sweep: 0.5 }], vol: 0.3, attack: 0.008, decay: 0.26, dur: 0.6 });
+  const e2 = noiseLayer(t + 0.03, { filters: [{ type: 'bandpass', f0: 1600, f1: 500, q: 0.6, sweep: 0.9 }], vol: 0.06, attack: 0.02, decay: 0.35, dur: 0.9 });
+  muteDetector(Math.max(e1, e2));
+  if (type === 'crackle') sfxCrackle(t + life * 0.85);
+  if (type === 'willow') noiseLayer(t + 0.15, { filters: [{ type: 'highpass', f0: 5000 }], vol: 0.018, attack: 0.5, hold: 1.2, decay: 0.5, dur: 2.4 });
+}
+function sfxCrackle(t0) {
+  for (let i = 0; i < 36; i++) noiseLayer(t0 + rand(0, 0.6), { filters: [{ type: 'highpass', f0: 2500 }], vol: rand(0.02, 0.06), attack: 0.001, decay: 0.005, dur: 0.03 });
+}
+function sfxPopper() {          // party popper: a soft pop and paper rustle
+  if (!S.sfx || !AC) return;
+  const t = AC.currentTime;
+  for (const d of [0, 0.05]) noiseLayer(t + d, { filters: [{ type: 'highpass', f0: 900 }, { type: 'bandpass', f0: 2200, q: 0.8 }], vol: 0.2, attack: 0.002, decay: 0.03, dur: 0.12 });
+  noiseLayer(t + 0.04, { filters: [{ type: 'highpass', f0: 3000 }], vol: 0.035, attack: 0.05, hold: 0.4, decay: 0.4, dur: 1.4 });
+}
 let songNodes = [];
 function tone(freq, t, dur, vol, type) {
   const o = AC.createOscillator(), o2 = AC.createOscillator(), g = AC.createGain(), g2 = AC.createGain();
@@ -532,7 +556,7 @@ function buildCandles(stagger) {
 function resize() {
   DPR = Math.min(window.devicePixelRatio || 1, 2.5);
   W = window.innerWidth; H = window.innerHeight;
-  cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
+  cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR); backdropClean = false;
   layout();
   if (R3) R3.resize();
 }
@@ -690,7 +714,7 @@ function puffSmoke(c, burst) {
     life: 0, max: burst ? rand(1.2, 2.2) : rand(1.8, 3), seed: rand(0, 9), a: burst ? 0.32 : 0.22 });
 }
 function relightAll(stagger, quiet) {
-  hideCelebrate(); stopSong();
+  hideCelebrate(); stopSong(); clearCelebrationFx();
   st.celebrated = false; st.celebrateAt = 0;
   const order = cands.slice().sort((a, b) => a.x - b.x);
   order.forEach((c, k) => {
@@ -708,14 +732,219 @@ function showCelebrate() {
   celebrateEl.classList.remove('hidden');
   const m = $('celebrateMsg'); m.style.animation = 'none'; void m.offsetWidth; m.style.animation = '';
   $('hint').classList.add('off');
-  for (let i = 0; i < 170; i++) {
-    const side = i % 2 ? 1 : -1;
-    confetti.push({ x: side > 0 ? W + 10 : -10, y: H * rand(0.35, 0.75), vx: -side * rand(160, 520), vy: rand(-720, -260),
-      rot: rand(0, 6), vr: rand(-12, 12), w: rand(5, 10), h: rand(8, 16), c: `hsl(${rand(0, 360) | 0},90%,65%)`, life: 0 });
-  }
+  if (use3D()) R3.popConfetti(); else popConfetti2D();
+  sfxPopper(); startFireworks();
   sfxChime(); playSong();
 }
 function hideCelebrate() { celebrateEl.classList.add('hidden'); }
+
+/* ---------------- celebration: fireworks (both views) + party poppers (2D) ----------------
+   Fireworks are drawn on the 2D canvas, which sits behind the WebGL canvas in 3D mode, so the
+   bursts always appear in the sky behind the cake. */
+const FW = { shells: [], parts: [], flashes: [], puffs: [], queue: [], clock: 0 };
+const FW_PALETTE = [[255, 70, 95], [255, 196, 70], [85, 170, 255], [110, 255, 160], [215, 110, 255], [255, 255, 255], [255, 135, 45], [90, 240, 255]];
+const fxScale = () => Math.min(W, H) / 400;
+const pickCol = () => FW_PALETTE[Math.random() * FW_PALETTE.length | 0];
+function startFireworks() {
+  FW.queue.length = 0;
+  let t = FW.clock + 0.4;
+  const order = ['peony', 'willow', 'ring', 'crackle', 'peony2', 'peony', 'willow', 'crackle', 'ring', 'peony2'];
+  for (const type of order) { t += rand(0.45, 1.0); FW.queue.push({ at: t, type }); }
+  t += 0.6;
+  for (let i = 0; i < 4; i++) FW.queue.push({ at: t + i * 0.2, type: i % 2 ? 'crackle' : 'peony2' });   // finale
+}
+function stopFireworks() { FW.queue.length = 0; FW.shells.length = 0; }
+function launchShell(type) {
+  const side = Math.random() < 0.5 ? -1 : 1;
+  const x0 = W / 2 + side * W * rand(0.12, 0.45), y0 = H * 0.6;
+  const tx = clamp(x0 + rand(-0.2, 0.2) * W - side * W * 0.12, W * 0.12, W * 0.88), ty = H * rand(0.12, 0.32);
+  const T = rand(1.0, 1.35), g = 2 * (y0 - ty) / (T * T);
+  FW.shells.push({ x: x0, y: y0, vx: (tx - x0) / T, vy: -g * T, g, t: 0, T, type, col: pickCol() });
+  sfxLaunch();
+}
+const FW_TYPES = {
+  peony:   { n: 130, sp: 235, life: 1.8, drag: 1.5, g: 60, trail: 6 },
+  peony2:  { n: 140, sp: 255, life: 1.7, drag: 1.5, g: 60, trail: 6, two: true },
+  willow:  { n: 100, sp: 190, life: 3.0, drag: 1.9, g: 45, trail: 13, gold: true },
+  ring:    { n: 90,  sp: 230, life: 1.7, drag: 1.4, g: 55, trail: 6, ring: true },
+  crackle: { n: 110, sp: 215, life: 1.4, drag: 1.6, g: 60, trail: 5, crackle: true },
+};
+function burstShell(s) {
+  const k = fxScale(), conf = FW_TYPES[s.type], alt = pickCol();
+  const tilt = rand(0.25, 0.9), rot = rand(0, Math.PI);
+  for (let i = 0; i < conf.n; i++) {
+    let dx, dy, dz;
+    if (conf.ring) {             // a tilted ring seen in perspective
+      const a = i / conf.n * Math.PI * 2, x = Math.cos(a), y = Math.sin(a) * tilt;
+      dz = Math.sin(a) * Math.sqrt(1 - tilt * tilt);
+      dx = x * Math.cos(rot) - y * Math.sin(rot); dy = x * Math.sin(rot) + y * Math.cos(rot);
+    } else {                     // even sphere of stars
+      dz = rand(-1, 1); const a = rand(0, Math.PI * 2), r = Math.sqrt(1 - dz * dz); dx = r * Math.cos(a); dy = r * Math.sin(a);
+    }
+    const v = conf.sp * k * rand(0.86, 1.08);
+    const c = conf.gold ? [255, rand(165, 200) | 0, 80] : conf.two && i % 2 ? alt : s.col;
+    FW.parts.push({ x: s.x, y: s.y, vx: dx * v, vy: dy * v, depth: 0.55 + 0.45 * (dz + 1) / 2, life: 0, max: conf.life * rand(0.8, 1.15),
+      drag: conf.drag, g: conf.g * k, c, trail: [], tl: conf.trail, crackle: conf.crackle, gold: conf.gold, seed: rand(0, 99) });
+  }
+  FW.flashes.push({ x: s.x, y: s.y, a: 1, c: s.col, r: 230 * k });
+  for (let i = 0; i < 5; i++) FW.puffs.push({ x: s.x + rand(-35, 35) * k, y: s.y + rand(-35, 35) * k, r: rand(30, 65) * k, life: 0, max: rand(4, 6), vx: rand(-6, 6), vy: rand(-5, 1) });
+  if (use3D()) R3.flash(s.col);
+  sfxBoom(s.type, conf.life);
+}
+function updateFireworks(dt) {
+  FW.clock += dt;
+  while (FW.queue.length && FW.queue[0].at <= FW.clock) launchShell(FW.queue.shift().type);
+  const k = fxScale();
+  for (let i = FW.shells.length - 1; i >= 0; i--) {
+    const s = FW.shells[i]; s.t += dt;
+    s.vy += s.g * dt; s.x += s.vx * dt; s.y += s.vy * dt;
+    if (Math.random() < 0.85) FW.parts.push({ x: s.x, y: s.y, vx: rand(-14, 14) * k, vy: rand(10, 40) * k, depth: 0.8, life: 0, max: rand(0.25, 0.55),
+      drag: 2, g: 80 * k, c: [255, 205, 130], trail: [], tl: 0, spark: true, seed: 0 });
+    if (s.t >= s.T) { FW.shells.splice(i, 1); burstShell(s); }
+  }
+  for (let i = FW.parts.length - 1; i >= 0; i--) {
+    const p = FW.parts[i]; p.life += dt;
+    if (p.life > p.max) {
+      if (p.crackle) for (let j = 0; j < 2; j++) FW.parts.push({ x: p.x, y: p.y, vx: rand(-35, 35) * k, vy: rand(-35, 35) * k, depth: 1, life: 0,
+        max: rand(0.06, 0.18), drag: 3, g: 0, c: [255, 250, 230], trail: [], tl: 0, spark: true, seed: 0 });
+      FW.parts.splice(i, 1); continue;
+    }
+    if (p.tl) { p.trail.push(p.x, p.y); if (p.trail.length > p.tl * 2) p.trail.splice(0, 2); }
+    const d = Math.exp(-p.drag * dt);
+    p.vx *= d; p.vy = p.vy * d + p.g * dt;
+    p.x += p.vx * dt; p.y += p.vy * dt;
+  }
+  if (FW.parts.length > 2600) FW.parts.splice(0, FW.parts.length - 2600);
+  for (let i = FW.flashes.length - 1; i >= 0; i--) { const f = FW.flashes[i]; f.a -= dt * 4; if (f.a <= 0) FW.flashes.splice(i, 1); }
+  for (let i = FW.puffs.length - 1; i >= 0; i--) {
+    const p = FW.puffs[i]; p.life += dt; p.x += p.vx * dt; p.y += p.vy * dt; p.r += dt * 6 * k;
+    if (p.life > p.max) FW.puffs.splice(i, 1);
+  }
+}
+function fwFlashLevel() { let a = 0; for (const f of FW.flashes) a += f.a; return Math.min(1, a); }
+function drawFireworks(c2) {
+  if (!FW.parts.length && !FW.flashes.length && !FW.puffs.length && !FW.shells.length) return;
+  for (const p of FW.puffs) {                       // drifting smoke the shells leave behind
+    const a = 0.06 * Math.sin(Math.PI * p.life / p.max);
+    const g = c2.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.r);
+    g.addColorStop(0, `rgba(150,140,160,${a})`); g.addColorStop(1, 'rgba(150,140,160,0)');
+    c2.fillStyle = g; c2.beginPath(); c2.arc(p.x, p.y, p.r, 0, 7); c2.fill();
+  }
+  c2.globalCompositeOperation = 'lighter';
+  for (const f of FW.flashes) {
+    const r = f.r * (1.6 - f.a * 0.6), [cr, cg, cb] = f.c;
+    const g = c2.createRadialGradient(f.x, f.y, 0, f.x, f.y, r);
+    g.addColorStop(0, `rgba(255,250,235,${0.65 * f.a})`); g.addColorStop(0.25, `rgba(${cr},${cg},${cb},${0.3 * f.a})`); g.addColorStop(1, `rgba(${cr},${cg},${cb},0)`);
+    c2.fillStyle = g; c2.beginPath(); c2.arc(f.x, f.y, r, 0, 7); c2.fill();
+  }
+  c2.lineCap = 'round';
+  for (const p of FW.parts) {
+    const k = p.life / p.max;
+    let a = (1 - k * k) * p.depth;
+    if (!p.spark && k > 0.55 && Math.sin(p.life * 46 + p.seed) < -0.2) a *= 0.2;   // stars twinkle as they burn out
+    const [r, g, b] = p.c;
+    const gg = Math.round(g * (1 - k * 0.35)), bb = Math.round(b * (1 - k * 0.6));     // and cool toward orange
+    if (p.trail.length >= 4) {
+      c2.strokeStyle = `rgba(${r},${gg},${bb},${a * 0.55})`; c2.lineWidth = (p.gold ? 2.2 : 1.8) * p.depth;
+      c2.beginPath(); c2.moveTo(p.trail[0], p.trail[1]);
+      for (let j = 2; j < p.trail.length; j += 2) c2.lineTo(p.trail[j], p.trail[j + 1]);
+      c2.lineTo(p.x, p.y); c2.stroke();
+    }
+    if (!p.spark && k < 0.6) {          // soft glow around young stars
+      c2.fillStyle = `rgba(${r},${gg},${bb},${a * 0.14})`;
+      c2.beginPath(); c2.arc(p.x, p.y, 4.5 * p.depth, 0, 7); c2.fill();
+    }
+    c2.fillStyle = `rgba(${Math.min(255, r + 70)},${Math.min(255, gg + 70)},${Math.min(255, bb + 70)},${a})`;
+    c2.beginPath(); c2.arc(p.x, p.y, (p.spark ? 0.9 : 1.7) * p.depth + 0.4, 0, 7); c2.fill();
+  }
+  for (const s of FW.shells) { c2.fillStyle = 'rgba(255,235,190,.95)'; c2.beginPath(); c2.arc(s.x, s.y, 1.8, 0, 7); c2.fill(); }
+  c2.globalCompositeOperation = 'source-over';
+}
+
+// ---- party poppers in 2D: paper confetti that tumbles and flutters, plus curly streamers ----
+const CONF_COLS = [[255, 77, 109], [255, 210, 63], [59, 206, 172], [77, 150, 255], [199, 125, 255], [255, 140, 66], [250, 250, 250], [122, 229, 130]];
+const streamers = [];
+function popConfetti2D() {
+  const k = fxScale();
+  for (const side of [-1, 1]) {
+    const ox = side < 0 ? -4 : W + 4, oy = H - 70, base = side < 0 ? -Math.PI / 3 : -Math.PI * 2 / 3;
+    for (let i = 0; i < 120; i++) {
+      const a = base + rand(-0.32, 0.32), v = rand(750, 1300) * k;
+      confetti.push({ x: ox, y: oy, vx: Math.cos(a) * v, vy: Math.sin(a) * v, rx: rand(0, 6), ry: rand(0, 6), rz: rand(0, 6),
+        wx: rand(-14, 14), wy: rand(-10, 10), wz: rand(-5, 5), w: rand(6, 10) * k, h: rand(3.5, 6) * k, col: CONF_COLS[i % CONF_COLS.length],
+        foil: Math.random() < 0.18, life: 0, rest: false, floor: rand(G.bottom + G.ry * 1.45, H - 50), depth: rand(-0.85, 0.85) });
+    }
+    for (let i = 0; i < 5; i++) {
+      const a = base + rand(-0.15, 0.4) * (side < 0 ? 1 : -1), v = rand(850, 1150) * k, n = 16, seg = rand(9, 13) * k;
+      const s = { x: new Float32Array(n), y: new Float32Array(n), ox: new Float32Array(n), oy: new Float32Array(n), n, seg,
+        col: CONF_COLS[(i * 3 + (side > 0 ? 1 : 0)) % CONF_COLS.length], width: 3.4 * k, tw: rand(0, 6), floor: rand(G.bottom + G.ry * 1.45, H - 50), fresh: true, age: 0, vx: Math.cos(a) * v, vy: Math.sin(a) * v };
+      s.x.fill(ox); s.y.fill(oy); s.ox.fill(ox); s.oy.fill(oy);
+      streamers.push(s);
+    }
+  }
+}
+function updateConfetti2D(dt) {
+  const k = fxScale(), grav = 300 * k;
+  for (const p of confetti) {
+    p.life += dt;
+    if (p.rest) continue;
+    const face = Math.abs(Math.cos(p.rx) * Math.cos(p.ry));          // flat pieces catch more air
+    const drag = (2.6 + 5 * face) * Math.min(1, 0.15 + p.life * 1.2);
+    p.vx *= Math.exp(-drag * dt * 0.7); p.vy = p.vy * Math.exp(-drag * dt) + grav * dt;
+    p.vx += Math.sin(p.ry) * Math.cos(p.rx) * 140 * k * face * dt;   // glide sideways while tumbling
+    const py = p.y;
+    p.x += p.vx * dt; p.y += p.vy * dt;
+    p.rx += p.wx * dt; p.ry += p.wy * dt; p.rz += p.wz * dt;
+    // land on the cake top, otherwise on the table
+    if (p.vy > 0 && Math.abs(p.x - G.cx) < G.rx * 0.95) {
+      const u = (p.x - G.cx) / G.rx, top = G.top + p.depth * G.ry * Math.sqrt(1 - u * u);
+      if (py < top && p.y >= top) { p.y = top; p.rest = true; }
+    }
+    if (!p.rest && p.life > 0.4 && p.y >= p.floor && p.vy > 0) { p.y = p.floor; p.rest = true; }
+  }
+  for (const s of streamers) {
+    const damp = Math.exp(-1.5 * dt), gdt = grav * 1.6 * dt * dt;
+    s.age += dt;
+    for (let i = 0; i < s.n; i++) {
+      let vx = (s.x[i] - s.ox[i]) * damp, vy = (s.y[i] - s.oy[i]) * damp;
+      if (s.fresh) { const f = 1 - i * 0.035; vx = s.vx * dt * f; vy = s.vy * dt * f; }   // whole ribbon is ejected, tail a bit slower
+      s.ox[i] = s.x[i]; s.oy[i] = s.y[i];
+      s.x[i] += vx + Math.sin(st.t * 5 + i * 0.7 + s.tw) * 0.25 * k; s.y[i] += vy + gdt;
+      if (s.age > 0.5 && s.y[i] > s.floor) { s.y[i] = s.floor; s.ox[i] = s.x[i] - vx * 0.3; }
+    }
+    s.fresh = false;
+    for (let it = 0; it < 3; it++) for (let i = 1; i < s.n; i++) {
+      const dx = s.x[i] - s.x[i - 1], dy = s.y[i] - s.y[i - 1], d = Math.hypot(dx, dy) || 1e-6, f = (d - s.seg) / d * 0.5;
+      s.x[i - 1] += dx * f; s.y[i - 1] += dy * f; s.x[i] -= dx * f; s.y[i] -= dy * f;
+    }
+  }
+}
+function drawConfetti2D(c2) {
+  for (const s of streamers) {
+    c2.lineCap = 'round';
+    for (let i = 1; i < s.n; i++) {
+      const tw = s.tw + i * 0.9 + st.t * 2, f = Math.abs(Math.cos(tw)), sh = 0.55 + 0.45 * f;
+      const [r, g, b] = s.col;
+      c2.strokeStyle = `rgb(${r * sh | 0},${g * sh | 0},${b * sh | 0})`; c2.lineWidth = s.width * (0.25 + 0.75 * f);
+      c2.beginPath(); c2.moveTo(s.x[i - 1], s.y[i - 1]); c2.lineTo(s.x[i], s.y[i]); c2.stroke();
+    }
+  }
+  for (const p of confetti) {
+    const sx = Math.cos(p.ry), sy = p.rest ? 0.35 : Math.cos(p.rx);
+    const facing = Math.abs(sx * sy), shade = 0.5 + 0.5 * facing;
+    let [r, g, b] = p.col; r *= shade; g *= shade; b *= shade;
+    if (p.foil) { const gl = Math.pow(facing, 10); r += (255 - r) * gl; g += (255 - g) * gl; b += (255 - b) * gl; }
+    const cz = Math.cos(p.rz), sz = Math.sin(p.rz);
+    c2.setTransform(DPR * cz * sx, DPR * sz * sx, -DPR * sz * sy, DPR * cz * sy, DPR * p.x, DPR * p.y);
+    c2.fillStyle = `rgb(${r | 0},${g | 0},${b | 0})`;
+    c2.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+  }
+  c2.setTransform(DPR, 0, 0, DPR, 0, 0);
+}
+function clearCelebrationFx() {
+  stopFireworks(); confetti.length = 0; streamers.length = 0;
+  if (R3) R3.clearConfetti();
+}
 
 /* ---------------- update ---------------- */
 function update(dt) {
@@ -774,12 +1003,8 @@ function update(dt) {
     if (p.life > p.max) { sparks.splice(i, 1); continue; }
     p.vy += 260 * dt; p.x += p.vx * dt; p.y += p.vy * dt;
   }
-  for (let i = confetti.length - 1; i >= 0; i--) {
-    const p = confetti[i]; p.life += dt;
-    p.vx *= 1 - dt * 1.2; p.vy += 520 * dt; p.vy *= 1 - dt * 1.5;
-    p.x += p.vx * dt + Math.sin(p.life * 4 + p.rot) * 30 * dt; p.y += p.vy * dt; p.rot += p.vr * dt;
-    if (p.y > H + 30 || p.life > 7) confetti.splice(i, 1);
-  }
+  updateConfetti2D(dt);
+  updateFireworks(dt);
 }
 
 /* ---------------- render ---------------- */
@@ -792,7 +1017,7 @@ function render() {
   ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
   ctx.globalCompositeOperation = 'lighter';
   const warm = ctx.createRadialGradient(G.cx, G.top - G.cw * 0.2, 0, G.cx, G.top - G.cw * 0.2, Math.max(W, H) * 0.75);
-  warm.addColorStop(0, `rgba(255,150,70,${0.42 * amb})`); warm.addColorStop(0.45, `rgba(200,80,60,${0.14 * amb})`);
+  warm.addColorStop(0, `rgba(255,150,70,${0.48 * amb})`); warm.addColorStop(0.45, `rgba(200,80,60,${0.14 * amb})`);
   warm.addColorStop(1, 'rgba(0,0,0,0)');
   ctx.fillStyle = warm; ctx.fillRect(0, 0, W, H);
   for (const b of bokeh) {
@@ -804,6 +1029,7 @@ function render() {
   }
   ctx.globalCompositeOperation = 'source-over';
 
+  drawFireworks(ctx);
   drawTable(amb);
   drawCake(amb);
 
@@ -839,18 +1065,14 @@ function render() {
     ctx.beginPath(); ctx.arc(p.x, p.y, 1.6 * a + 0.4, 0, 7); ctx.fill();
   }
   ctx.globalCompositeOperation = 'source-over';
-  for (const p of confetti) {
-    ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot);
-    ctx.scale(Math.cos(p.life * 6 + p.rot), 1);
-    ctx.fillStyle = p.c; ctx.globalAlpha = Math.min(1, (7 - p.life) / 1.5);
-    ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h); ctx.restore();
-  }
-  ctx.globalAlpha = 1;
+  drawConfetti2D(ctx);
   // vignette + darkness when candles are out
   const vg = ctx.createRadialGradient(G.cx, G.top, Math.min(W, H) * 0.25, G.cx, G.top, Math.max(W, H) * 0.85);
   vg.addColorStop(0, 'rgba(4,2,8,0)'); vg.addColorStop(1, `rgba(4,2,8,${0.55 + 0.3 * (1 - amb)})`);
   ctx.fillStyle = vg; ctx.fillRect(0, 0, W, H);
   ctx.fillStyle = `rgba(4,2,10,${0.38 * (1 - amb)})`; ctx.fillRect(0, 0, W, H);
+  const fl = fwFlashLevel();
+  if (fl > 0.01) { ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = `rgba(255,235,220,${0.06 * fl})`; ctx.fillRect(0, 0, W, H); ctx.globalCompositeOperation = 'source-over'; }
 }
 
 function drawTable(amb) {
@@ -930,7 +1152,7 @@ function drawCake(amb) {
   // warm candle light on the cake
   ctx.globalCompositeOperation = 'lighter';
   const lg = ctx.createRadialGradient(cx, top - ry, 0, cx, top, rx * 1.4);
-  lg.addColorStop(0, `rgba(255,170,90,${0.3 * amb})`); lg.addColorStop(1, 'rgba(255,170,90,0)');
+  lg.addColorStop(0, `rgba(255,170,90,${0.35 * amb})`); lg.addColorStop(1, 'rgba(255,170,90,0)');
   ctx.fillStyle = lg; ctx.beginPath(); ctx.arc(cx, top - ry, rx * 1.4, 0, 7); ctx.fill();
   ctx.globalCompositeOperation = 'source-over';
   ctx.lineCap = 'butt';
@@ -990,7 +1212,7 @@ function drawFlame(c, t) {
   const gx = x + Math.sin(lean) * h * 0.4, gy = y - h * 0.4;
   const gr = s * 3.2;
   const gg = ctx.createRadialGradient(gx, gy, 0, gx, gy, gr);
-  gg.addColorStop(0, `rgba(255,190,90,${0.38 * flick * e})`); gg.addColorStop(0.35, `rgba(255,130,50,${0.14 * flick * e})`);
+  gg.addColorStop(0, `rgba(255,190,90,${0.44 * flick * e})`); gg.addColorStop(0.35, `rgba(255,130,50,${0.14 * flick * e})`);
   gg.addColorStop(1, 'rgba(255,90,30,0)');
   ctx.fillStyle = gg; ctx.beginPath(); ctx.arc(gx, gy, gr, 0, 7); ctx.fill();
   ctx.globalCompositeOperation = 'source-over';
@@ -1014,17 +1236,17 @@ function drawFlame(c, t) {
   ctx.restore();
 }
 
-// in 3D mode the 2D canvas only carries the confetti, on top of the WebGL canvas
+// in 3D mode the 2D canvas is the backdrop behind the (transparent) WebGL canvas: night sky + fireworks
+let backdropClean = false;   // the static sky only needs repainting while fireworks are going
 function renderOverlay() {
+  const busy = FW.parts.length || FW.shells.length || FW.flashes.length || FW.puffs.length;
+  if (!busy && backdropClean) return;
+  backdropClean = !busy;
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-  ctx.clearRect(0, 0, W, H);
-  for (const p of confetti) {
-    ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot);
-    ctx.scale(Math.cos(p.life * 6 + p.rot), 1);
-    ctx.fillStyle = p.c; ctx.globalAlpha = Math.min(1, (7 - p.life) / 1.5);
-    ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h); ctx.restore();
-  }
-  ctx.globalAlpha = 1;
+  const bg = ctx.createLinearGradient(0, 0, 0, H);
+  bg.addColorStop(0, '#08040d'); bg.addColorStop(0.55, '#0d0711'); bg.addColorStop(1, '#070409');
+  ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
+  drawFireworks(ctx);
 }
 
 /* ---------------- loop ---------------- */
@@ -1221,6 +1443,7 @@ function updateRenderBtn() {
   b.title = S.render === '2d' ? '目前是 2D 畫面，點一下切換成 3D' : '目前是 3D 畫面，點一下切換成 2D';
 }
 function applyRenderMode() {
+  backdropClean = false;
   if (R3) R3.show(!!use3D());
   updateRenderBtn();
 }
@@ -1291,6 +1514,8 @@ window.candleDebug = {
   render() { return { mode: use3D() ? '3d' : '2d', r3State, info: R3 ? R3.info() : null }; },
   project3D(i) { return R3 ? R3.project(i) : null; },
   loseContext3D() { if (R3) R3.loseContext(); },
+  advance(sec) { for (let t = 0; t < sec; t += 1 / 60) { update(1 / 60); if (use3D()) R3.stepFx(1 / 60); } },
+  fx() { return { shells: FW.shells.length, stars: FW.parts.length, queued: FW.queue.length, confetti: confetti.length, streamers: streamers.length }; },
   calText() { return calEl.hidden ? null : $('calTitle').textContent + ' | ' + $('calText').textContent; }
 };
 
@@ -1400,8 +1625,9 @@ function traceDigit(ch) {
 
 function create3D(THREE) {
   const canvas3 = document.createElement('canvas'); canvas3.id = 'scene3d';
-  document.body.insertBefore(canvas3, cv);
-  const renderer = new THREE.WebGLRenderer({ canvas: canvas3, antialias: true, powerPreference: 'default' });
+  cv.after(canvas3);
+  const renderer = new THREE.WebGLRenderer({ canvas: canvas3, antialias: true, alpha: true, powerPreference: 'default' });
+  renderer.setClearColor(0x000000, 0);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.15;
   renderer.info.autoReset = false;
@@ -1422,7 +1648,6 @@ function create3D(THREE) {
   });
 
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x070409);
   scene.fog = new THREE.FogExp2(0x070409, 0.055);
   const camera = new THREE.PerspectiveCamera(30, 1, 0.05, 80);
 
@@ -1501,8 +1726,14 @@ function create3D(THREE) {
   // ---------- static scene ----------
   const R = 1, Y0 = 0.04, CH = 0.66, T = Y0 + CH;
   const V2 = (x, y) => new THREE.Vector2(x, y);
-  const table = new THREE.Mesh(new THREE.PlaneGeometry(40, 40), M.table);
-  table.rotation.x = -Math.PI / 2; scene.add(table);
+  // the table fades out into the dark room, so the fireworks backdrop shows behind the cake
+  const tableFade = canvasTex(256, 256, (g, w, h) => {
+    const gr = g.createRadialGradient(128, 128, 40, 128, 128, 128);
+    gr.addColorStop(0, '#fff'); gr.addColorStop(1, '#000'); g.fillStyle = gr; g.fillRect(0, 0, w, h);
+  }, false);
+  M.table.alphaMap = tableFade; M.table.transparent = true; woodTex.repeat.set(0.75, 0.75);
+  const table = new THREE.Mesh(new THREE.PlaneGeometry(12, 12), M.table);
+  table.rotation.x = -Math.PI / 2; table.renderOrder = -1; scene.add(table);
   const flatDecal = (tex, size, y, opacity) => {
     const m = new THREE.Mesh(new THREE.PlaneGeometry(size, size), new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, opacity, color: 0x000000 }));
     m.rotation.x = -Math.PI / 2; m.position.y = y; scene.add(m); return m;
@@ -1649,6 +1880,133 @@ function create3D(THREE) {
     polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
   const shadows = new THREE.InstancedMesh(shGeo, shMat, MAXC); shadows.count = 0; shadows.renderOrder = 2; scene.add(shadows);
 
+  // ---------- party poppers in 3D: lit paper + foil confetti and curly streamers that land on the cake ----------
+  const confMat = new THREE.MeshStandardMaterial({ roughness: 0.55, side: THREE.DoubleSide });
+  const foilMat = new THREE.MeshStandardMaterial({ roughness: 0.2, metalness: 0.9, side: THREE.DoubleSide });
+  const confGeo = new THREE.PlaneGeometry(1, 1);
+  const paper = new THREE.InstancedMesh(confGeo, confMat, 260), foil = new THREE.InstancedMesh(confGeo, foilMat, 60);
+  for (const im of [paper, foil]) { im.count = 0; im.frustumCulled = false; scene.add(im); }
+  const CONF3 = ['#ff4d6d', '#ffd23f', '#3bceac', '#4d96ff', '#c77dff', '#ff8c42', '#fafafa', '#7ae582'];
+  const FOIL3 = ['#ffd27a', '#e8e8f0', '#ff9ec4', '#9fd8ff'];
+  const pieces = [];
+  const STRN = 12, NODES = 22;
+  const strPos = new Float32Array(STRN * NODES * 2 * 3), strNor = new Float32Array(strPos.length), strCol = new Float32Array(strPos.length);
+  const strIdx = [];
+  for (let s = 0; s < STRN; s++) for (let i = 0; i < NODES - 1; i++) {
+    const a = (s * NODES + i) * 2; strIdx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2);
+  }
+  const strGeo = new THREE.BufferGeometry();
+  strGeo.setAttribute('position', new THREE.BufferAttribute(strPos, 3));
+  strGeo.setAttribute('normal', new THREE.BufferAttribute(strNor, 3));
+  strGeo.setAttribute('color', new THREE.BufferAttribute(strCol, 3));
+  strGeo.setIndex(strIdx);
+  const strMesh = new THREE.Mesh(strGeo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.5, side: THREE.DoubleSide }));
+  strMesh.frustumCulled = false; strMesh.visible = false; scene.add(strMesh);
+  const strands = [];
+  const surfaceY = (x, z) => {                   // what a falling piece lands on: cake top, plate, table
+    const r = Math.hypot(x, z);
+    if (r < 1.0) return capY(r) + 0.004;
+    if (r < 1.4) return Y0 + 0.008;
+    return 0.004;
+  };
+  const cq = new THREE.Quaternion(), cn = new THREE.Vector3(), cm = new THREE.Matrix4(), cs = new THREE.Vector3(), ce = new THREE.Euler();
+  function popConfetti() {
+    clearConfetti();
+    const col = new THREE.Color();
+    for (const side of [-1, 1]) {
+      const origin = new THREE.Vector3(side * 1.3, 0.1, 1.35);
+      for (let i = 0; i < 160; i++) {
+        const isFoil = i < 30;
+        const dir = new THREE.Vector3(-side * rand(0.25, 0.7), rand(2.0, 2.8), rand(-1.1, -0.4)).normalize();
+        const p = { p: origin.clone(), v: dir.multiplyScalar(rand(7.5, 11)), q: new THREE.Quaternion().setFromEuler(ce.set(rand(0, 6), rand(0, 6), rand(0, 6))),
+          axis: new THREE.Vector3(rand(-1, 1), rand(-1, 1), rand(-1, 1)).normalize(), spin: rand(7, 16), w: rand(0.035, 0.052), h: rand(0.02, 0.03),
+          foil: isFoil, rest: false, life: 0, idx: 0 };
+        p.idx = isFoil ? foil.count++ : paper.count++;
+        (isFoil ? foil : paper).setColorAt(p.idx, col.set(isFoil ? FOIL3[p.idx % FOIL3.length] : CONF3[p.idx % CONF3.length]));
+        pieces.push(p);
+      }
+      for (let k = 0; k < STRN / 2; k++) {
+        const v = new THREE.Vector3(-side * rand(0.3, 0.6), rand(2.0, 2.6), rand(-0.9, -0.4)).normalize().multiplyScalar(rand(6.5, 8.5));
+        const s = { pos: new Float32Array(NODES * 3), old: new Float32Array(NODES * 3), seg: rand(0.045, 0.065), tw: rand(0, 6), v, fresh: true,
+          col: new THREE.Color(CONF3[(k * 3 + (side > 0 ? 1 : 0)) % CONF3.length]) };
+        for (let i = 0; i < NODES; i++) { s.pos.set([origin.x, origin.y, origin.z], i * 3); s.old.set([origin.x, origin.y, origin.z], i * 3); }
+        strands.push(s);
+      }
+    }
+    paper.instanceColor.needsUpdate = true; foil.instanceColor.needsUpdate = true;
+    strMesh.visible = true;
+  }
+  function clearConfetti() { pieces.length = 0; strands.length = 0; paper.count = foil.count = 0; strMesh.visible = false; }
+  function updateConfetti3D(dt) {
+    if (!pieces.length && !strands.length) return;
+    const g = 4.2;
+    for (const p of pieces) {
+      p.life += dt;
+      if (!p.rest) {
+        cn.set(0, 0, 1).applyQuaternion(p.q);
+        const face = Math.abs(cn.y);                                   // flat pieces catch more air
+        const drag = (1.4 + 6 * face) * Math.min(1, 0.08 + p.life * 0.9);
+        p.v.multiplyScalar(Math.exp(-drag * dt)); p.v.y -= g * dt;
+        p.v.x += cn.x * face * 1.3 * dt; p.v.z += cn.z * face * 1.3 * dt;   // glide along the tilt
+        p.p.addScaledVector(p.v, dt);
+        p.spin = Math.max(4, p.spin * Math.exp(-0.4 * dt));
+        p.q.multiply(cq.setFromAxisAngle(p.axis, p.spin * dt));
+        const r = Math.hypot(p.p.x, p.p.z);
+        if (r < 1.03 && r > 0.98 && p.p.y < T && p.p.y > Y0) { p.p.x *= 1.04 / r; p.p.z *= 1.04 / r; }   // slide off the cake side
+        const sy = surfaceY(p.p.x, p.p.z);
+        if (p.v.y < 0 && p.p.y <= sy && p.p.y > sy - 0.08) {
+          p.p.y = sy; p.rest = true;
+          p.q.setFromEuler(ce.set(-Math.PI / 2 + rand(-0.15, 0.15), rand(0, 6), rand(-0.15, 0.15), 'YXZ'));
+        } else if (p.p.y < 0.004) { p.p.y = 0.004; p.rest = true; p.q.setFromEuler(ce.set(-Math.PI / 2, rand(0, 6), 0, 'YXZ')); }
+      }
+      (p.foil ? foil : paper).setMatrixAt(p.idx, cm.compose(p.p, p.q, cs.set(p.w, p.h, 1)));
+    }
+    paper.instanceMatrix.needsUpdate = true; foil.instanceMatrix.needsUpdate = true;
+    // streamers: verlet chains of paper ribbon
+    const damp = Math.exp(-1.3 * dt), gdt = g * 1.2 * dt * dt;
+    const tA = new THREE.Vector3(), side = new THREE.Vector3(), nrm = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0);
+    strands.forEach((s, si) => {
+      const P = s.pos, O = s.old;
+      for (let i = 0; i < NODES; i++) {
+        const j = i * 3;
+        let vx = (P[j] - O[j]) * damp, vy = (P[j + 1] - O[j + 1]) * damp, vz = (P[j + 2] - O[j + 2]) * damp;
+        if (s.fresh) { const f = 1 - i * 0.03; vx = s.v.x * dt * f; vy = s.v.y * dt * f; vz = s.v.z * dt * f; }
+        O[j] = P[j]; O[j + 1] = P[j + 1]; O[j + 2] = P[j + 2];
+        P[j] += vx + Math.sin(t3 * 4 + i * 0.6 + s.tw) * 0.0015; P[j + 1] += vy - gdt; P[j + 2] += vz;
+        const sy = surfaceY(P[j], P[j + 2]);
+        if (P[j + 1] < sy && P[j + 1] > sy - 0.1) { P[j + 1] = sy; O[j] = P[j] - vx * 0.2; O[j + 2] = P[j + 2] - vz * 0.2; O[j + 1] = P[j + 1]; }
+        else if (P[j + 1] < 0.004) { P[j + 1] = 0.004; O[j + 1] = P[j + 1]; }
+      }
+      s.fresh = false;
+      for (let it = 0; it < 4; it++) for (let i = 1; i < NODES; i++) {
+        const a = (i - 1) * 3, b = i * 3;
+        const dx = P[b] - P[a], dy = P[b + 1] - P[a + 1], dz = P[b + 2] - P[a + 2], d = Math.hypot(dx, dy, dz) || 1e-6, f = (d - s.seg) / d * 0.5;
+        P[a] += dx * f; P[a + 1] += dy * f; P[a + 2] += dz * f; P[b] -= dx * f; P[b + 1] -= dy * f; P[b + 2] -= dz * f;
+      }
+      // ribbon surface with a twist along its length
+      for (let i = 0; i < NODES; i++) {
+        const a = Math.max(0, i - 1) * 3, b = Math.min(NODES - 1, i + 1) * 3;
+        tA.set(P[b] - P[a], P[b + 1] - P[a + 1], P[b + 2] - P[a + 2]).normalize();
+        side.crossVectors(tA, up); if (side.lengthSq() < 1e-6) side.set(1, 0, 0); side.normalize();
+        nrm.crossVectors(side, tA);
+        const tw = s.tw + i * 0.85, c = Math.cos(tw), sn = Math.sin(tw);
+        const sxv = side.x * c + nrm.x * sn, syv = side.y * c + nrm.y * sn, szv = side.z * c + nrm.z * sn;
+        const hw = 0.012, o = ((si * NODES) + i) * 6, j = i * 3;
+        strPos[o] = P[j] + sxv * hw; strPos[o + 1] = P[j + 1] + syv * hw; strPos[o + 2] = P[j + 2] + szv * hw;
+        strPos[o + 3] = P[j] - sxv * hw; strPos[o + 4] = P[j + 1] - syv * hw; strPos[o + 5] = P[j + 2] - szv * hw;
+        const nx = nrm.x * c - side.x * sn, ny = nrm.y * c - side.y * sn, nz = nrm.z * c - side.z * sn;
+        strNor[o] = strNor[o + 3] = nx; strNor[o + 1] = strNor[o + 4] = ny; strNor[o + 2] = strNor[o + 5] = nz;
+        strCol[o] = strCol[o + 3] = s.col.r; strCol[o + 1] = strCol[o + 4] = s.col.g; strCol[o + 2] = strCol[o + 5] = s.col.b;
+      }
+    });
+    strGeo.setDrawRange(0, strands.length * (NODES - 1) * 6);
+    strGeo.attributes.position.needsUpdate = strGeo.attributes.normal.needsUpdate = strGeo.attributes.color.needsUpdate = true;
+  }
+  // fireworks light up the room for a moment
+  const fwLight = new THREE.DirectionalLight(0xffffff, 0); fwLight.position.set(0, 6, -3); scene.add(fwLight);
+  const flashCol = new THREE.Color(); let flashI = 0;
+  function flash(rgb) { flashCol.setRGB(rgb[0] / 255, rgb[1] / 255, rgb[2] / 255).lerp(new THREE.Color(1, 1, 1), 0.3); flashI = Math.min(1.8, flashI + 1.2); }
+
   // ---------- candles ----------
   const group = new THREE.Group(); scene.add(group);
   const hitMat = new THREE.MeshBasicMaterial();
@@ -1779,12 +2137,12 @@ function create3D(THREE) {
         const hs = s * (1 + (n2 - 0.5) * 0.12 * (1 + wind * 2) + Math.min(wind, 0.8) * 0.15 - Math.max(0, wind - 0.8) * 0.35);
         b.flame.scale.set(b.fh * 0.46 * s * (1 - Math.min(wind, 1.2) * 0.15), b.fh * hs, 1);
         b.flame.rotation.y = Math.atan2(camera.position.x - b.tipW.x, camera.position.z - b.tipW.z);
-        b.halo.material.opacity = s * 0.55 * flick;
+        b.halo.material.opacity = s * 0.62 * flick;
         b.halo.scale.setScalar(b.fh * (4.2 + 0.8 * flick));
       }
       b.ember.visible = c.ember > 0.01;
       if (b.ember.visible) { b.ember.material.opacity = c.ember * 0.95; b.ember.scale.setScalar(0.04 + 0.05 * c.ember); }
-      for (const m of b.mats) m.emissiveIntensity = s * 1.1 * flick;
+      for (const m of b.mats) m.emissiveIntensity = s * 1.25 * flick;
       if (b.prevLit && !c.lit && c.ember > 0.5) for (let i = 0; i < 16; i++) emitSmoke(b.tipW, true, c.bias);
       if (!b.prevLit && c.lit) for (let i = 0; i < 12; i++) spark3.list.push({ x: b.tipW.x, y: b.tipW.y, z: b.tipW.z, vx: rand(-0.4, 0.4), vy: rand(0.2, 0.9), vz: rand(-0.4, 0.4), life: 0, max: rand(0.25, 0.6) });
       b.prevLit = c.lit;
@@ -1793,11 +2151,11 @@ function create3D(THREE) {
       tot += k; px += b.tipW.x * k; py += (b.tipW.y + b.fh * 0.35) * k; pz += b.tipW.z * k;
     }
     // the flames' combined light, and each candle's shadow cast away from it
-    if (tot > 0.001) { lightPos.set(px / tot, py / tot, pz / tot); flameLight.position.copy(lightPos); flameLight.intensity = 1.15 * Math.pow(tot, 0.6); }
+    if (tot > 0.001) { lightPos.set(px / tot, py / tot, pz / tot); flameLight.position.copy(lightPos); flameLight.intensity = 1.4 * Math.pow(tot, 0.6); }
     else flameLight.intensity = 0;
-    shMat.opacity = clamp(flameLight.intensity / 1.6, 0, 1) * 0.8;
+    shMat.opacity = clamp(flameLight.intensity / 1.9, 0, 1) * 0.8;
     haze.visible = tot > 0.001;
-    if (haze.visible) { haze.position.copy(lightPos); haze.scale.setScalar(2.2 + 0.25 * Math.sqrt(tot)); haze.material.opacity = Math.min(0.32, 0.1 * Math.sqrt(tot)); }
+    if (haze.visible) { haze.position.copy(lightPos); haze.scale.setScalar(2.2 + 0.25 * Math.sqrt(tot)); haze.material.opacity = Math.min(0.36, 0.115 * Math.sqrt(tot)); }
     for (let i = 0; i < shadows.count; i++) {
       const b = C3[i], bx = b.sub.position.x, bz = b.sub.position.z;
       let dx = bx - lightPos.x, dz = bz - lightPos.z; const d = Math.hypot(dx, dz) || 1e-4; dx /= d; dz /= d;
@@ -1832,6 +2190,8 @@ function create3D(THREE) {
       p.vy -= 2.2 * dt; p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt;
     }
     flushPoints(spark3, p => [0.012, 1 - p.life / p.max]);
+    updateConfetti3D(dt);
+    flashI *= Math.exp(-dt * 5); fwLight.intensity = flashI; fwLight.color.copy(flashCol);
     renderer.info.reset();
     renderer.render(scene, camera);
   }
@@ -1859,6 +2219,8 @@ function create3D(THREE) {
       tmp.copy(b.tipW); tmp.y += b.fh * 0.4; tmp.project(camera);
       return { x: (tmp.x + 1) / 2 * W, y: (1 - tmp.y) / 2 * H };
     },
+    popConfetti, clearConfetti, flash,
+    stepFx(dt) { t3 += dt; updateConfetti3D(dt); },
     loseContext() { const ext = renderer.getContext().getExtension('WEBGL_lose_context'); if (ext) { ext.loseContext(); setTimeout(() => ext.restoreContext(), 500); } },
     info() { return { pr: +pr.toFixed(2), calls: renderer.info.render.calls, tris: renderer.info.render.triangles, losses }; }
   };
