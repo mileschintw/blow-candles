@@ -759,8 +759,10 @@ function digitSprite(ch, dh, color) {
   const left = m.actualBoundingBoxLeft || 0, right = m.actualBoundingBoxRight || m.width;
   const pad = Math.ceil(dh * 0.05);
   const w = Math.ceil(left + right + pad * 2), h = Math.ceil(asc + desc + pad * 2);
-  const c = document.createElement('canvas'); c.width = Math.ceil(w * DPR); c.height = Math.ceil(h * DPR);
-  const o = c.getContext('2d'); o.scale(DPR, DPR);
+  // the wax body is painted on its own layer first: some fonts build 6, 8, 9 out of overlapping contours, and
+  // stroking the text directly would draw those inner seams across the face
+  const body = document.createElement('canvas'); body.width = Math.ceil(w * DPR); body.height = Math.ceil(h * DPR);
+  const o = body.getContext('2d'); o.scale(DPR, DPR);
   o.font = font; o.textBaseline = 'alphabetic';
   const tx = pad + left, ty = pad + asc;
   // rounded wax body
@@ -782,12 +784,17 @@ function digitSprite(ch, dh, color) {
     o.beginPath(); o.arc(rand(0, w), rand(0, h), rand(0.4, 1.3), 0, 7); o.fill();
   }
   o.globalCompositeOperation = 'source-over';
-  o.lineWidth = Math.max(1, dh * 0.016); o.strokeStyle = mix(color, 'k', 0.55);
-  o.lineJoin = 'round'; o.strokeText(ch, tx, ty);
+  // outline: a double-width stroke underneath, with the solid body on top, so only the outer half shows
+  const c = document.createElement('canvas'); c.width = body.width; c.height = body.height;
+  const oc = c.getContext('2d'); oc.scale(DPR, DPR);
+  oc.font = font; oc.textBaseline = 'alphabetic';
+  oc.lineWidth = Math.max(2, dh * 0.032); oc.strokeStyle = mix(color, 'k', 0.55);
+  oc.lineJoin = 'round'; oc.strokeText(ch, tx, ty);
+  oc.setTransform(1, 0, 0, 1, 0, 0); oc.drawImage(body, 0, 0);
   // find the wick spot: centre of the top-most opaque row
   let wickX = w / 2, wickY = pad;
   try {
-    const id = o.getImageData(0, 0, c.width, c.height).data;
+    const id = oc.getImageData(0, 0, c.width, c.height).data;
     outer: for (let y = 0; y < c.height; y++) {
       let sx = 0, cnt = 0;
       for (let x = 0; x < c.width; x++) if (id[(y * c.width + x) * 4 + 3] > 140) { sx += x; cnt++; }
