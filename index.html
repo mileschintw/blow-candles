@@ -616,7 +616,7 @@ const G = {};                // cake geometry
 let cands = [];
 const smoke = [], sparks = [], confetti = [];
 let bokeh = [], sprinkles = [], drips = [];
-const st = { level: 0, disp: 0, wind: 0, ambient: 1, celebrated: false, celebrateAt: 0, t: 0, everBlown: false };
+const st = { level: 0, disp: 0, wind: 0, ambient: 1, celebrated: false, celebrateAt: 0, t: 0, everBlown: false, outAt: 0, warmLin: 0, warm: 0 };
 const COLORS = ['#ff7eb6', '#7ec8ff', '#ffd166', '#8ef0b5', '#c59bff', '#ff9f6e', '#6ee7f0'];
 
 function hexRgb(h) { const n = parseInt(h.slice(1), 16); return [n >> 16 & 255, n >> 8 & 255, n & 255]; }
@@ -832,6 +832,7 @@ function relightAll(stagger, quiet) {
 function litCount() { let n = 0; for (const c of cands) if (c.lit || c.pending) n++; return n; }
 
 /* ---- celebration ---- */
+const WARM_DELAY = 1.2, WARM_UP = 1.5, WARM_DOWN = 0.8;   // seconds
 const celebrateEl = $('celebrate');
 function showCelebrate() {
   $('celebrateMsg').textContent = wishText() || '🎉';
@@ -1098,8 +1099,13 @@ function update(dt) {
   st.ambient += (amb - st.ambient) * (1 - Math.exp(-dt * 3));
 
   if (!lit && !pend && cands.length && !st.celebrated) {
-    st.celebrated = true; st.celebrateAt = st.t + 0.55;
+    st.celebrated = true; st.celebrateAt = st.t + 0.55; st.outAt = st.t;
   }
+  // room light: stays dark and cool for a moment after the last flame, then warms up over ~1.5 s like
+  // someone switching on a lamp; fades back to candlelight when they're relit
+  const warmOn = st.celebrated && st.t - st.outAt >= WARM_DELAY;
+  st.warmLin = warmOn ? Math.min(1, st.warmLin + dt / WARM_UP) : Math.max(0, st.warmLin - dt / WARM_DOWN);
+  st.warm = st.warmLin * st.warmLin * (3 - 2 * st.warmLin);
   if (st.celebrateAt && st.t >= st.celebrateAt) { st.celebrateAt = 0; showCelebrate(); }
   if (st.everBlown || st.celebrated) $('hint').classList.add('off');
 
@@ -1633,7 +1639,7 @@ window.candleDebug = {
     return { lit: cands.filter(c => c.lit).length, pending: cands.filter(c => c.pending).length, total: cands.length,
       level: Math.round(st.level), threshold: S.threshold, calibrating: !!det.calib, calibrated: S.calibrated,
       dbg: `ex${det.excess.toFixed(0)} v${det.voice.toFixed(2)} d${det.dose.toFixed(2)}`, mic: micOk, celebrated: st.celebrated,
-      celebrateVisible: !celebrateEl.classList.contains('hidden'),
+      celebrateVisible: !celebrateEl.classList.contains('hidden'), warm: +st.warm.toFixed(3),
       boxes: cands.map(c => ({ x: Math.round(c.x), y: Math.round(c.y), wickX: Math.round(c.wickX), wickY: Math.round(c.wickY) })) };
   },
   calibrate: startCalib,
