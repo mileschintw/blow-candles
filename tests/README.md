@@ -42,4 +42,10 @@ Take 3D screenshots and test tapping and blowing:
 node render-3d.js "?count=5&q=0&r=3d" shot quiet tap,blow
 ```
 
+Check that the English page, `en/index.html`, matches `index.html`:
+
+```bash
+node ../tools/build-en.mjs --check
+```
+
 Set the `CHROME` environment variable to point at your Chrome executable; it defaults to the Windows install path.
