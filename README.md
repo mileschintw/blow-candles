@@ -11,11 +11,11 @@ The whole app is a single [`index.html`](index.html) with no build step.
 ## Features
 
 - **Two kinds of candles:** regular candles (1–40) or number candles (up to 4 digits, such as `18` or `2026`).
-- **2D view (default):** runs smoothly on any device.
-- **Real-time 3D view:** switch with the button at the top right.
+- **Real-time 3D view (default):** switch views with the button at the top right, or pick 2D on the start screen before anything loads.
   - Rendered with three.js: a modelled cake and extruded number candles.
   - The light sits in the flames and flickers with them, candles cast shadows, the wax glows warm, and smoke rises after you blow.
   - Falls back to 2D if 3D isn't supported.
+- **2D view:** runs smoothly on any device.
 - **Blow detection:**
   - Measures how much louder the sound is than the room, so a quiet bedroom and a noisy restaurant feel the same.
   - Talking and short knocks on the phone are filtered out.
@@ -28,7 +28,7 @@ The whole app is a single [`index.html`](index.html) with no build step.
 - **URL parameters:**
   - `?num=25`: number candles
   - `?count=3`: number of regular candles
-  - `?r=3d`: open in 3D
+  - `?r=2d` / `?r=3d`: open in 2D or 3D
   - `?debug`: show detector readings
 
 ## Using and hosting it
@@ -52,7 +52,7 @@ The 3D view loads three.js 0.160 from jsDelivr. It needs a network connection an
 | v1.0.0 | 2026-10-07 | 2D view, regular and number candles, microphone blowing, adjustable threshold, synthesized sounds and birthday song |
 | v2.0.0 | 2026-10-07 | Softer, breath-like blow-out sound; rebuilt blow detection (room-noise baseline, speech filtering, accumulated blowing); auto calibration |
 | v3.0.0 | 2026-10-08 | Real-time 3D rendering (three.js), 3D by default, switchable to 2D |
-| Unreleased | 2026-10-08 | 2D is the default again; 3D loads only when chosen |
+| Unreleased | 2026-10-08 | Lighter 3D for phones; fireworks and party poppers; 3D is the default again, with 2D selectable on the start screen |
 
 See the commit history for every individual change.
 

@@ -146,6 +146,9 @@
   .switch:checked{background:#ff9a76}
   .switch:checked::after{transform:translateX(20px)}
   .sheet .primary{margin-top:18px}
+  .start-render{margin:0 0 16px}
+  .start-render .cap{display:block;font-size:13px;color:var(--muted);margin-bottom:8px;letter-spacing:.06em}
+  .start-render .seg button{height:36px;font-size:14px}
   .hidden-field{display:none}
 </style>
 </head>
@@ -232,6 +235,8 @@
     <div class="logo">🕯️</div>
     <h1>吹蠟燭</h1>
     <p>允許使用麥克風後，<br>對著手機底部的麥克風吹氣，就能把蠟燭吹熄。</p>
+    <div class="start-render"><span class="cap">畫面</span>
+      <div class="seg" id="startRender"><button data-r="3d">3D 立體</button><button data-r="2d">2D 平面</button></div></div>
     <button id="btnStart" class="primary">開始 🎂</button>
     <button id="btnNoMic" class="ghost">不使用麥克風（點蠟燭吹熄）</button>
     <p class="err" id="startErr"></p>
@@ -248,7 +253,7 @@ const rand = (a, b) => a + Math.random() * (b - a);
 
 /* ---------------- settings ---------------- */
 const KEY = 'blow-candle-v2';
-const DEFAULTS = { mode: 'single', count: 5, number: '18', threshold: 40, msg: '生日快樂！', sfx: true, song: true, calibrated: false, render: '2d' };
+const DEFAULTS = { mode: 'single', count: 5, number: '18', threshold: 40, msg: '生日快樂！', sfx: true, song: true, calibrated: false, render: '3d' };
 const S = Object.assign({}, DEFAULTS);
 try {
   const raw = localStorage.getItem(KEY);
@@ -258,7 +263,7 @@ try {
     if (old) { delete old.threshold; Object.assign(S, old); }
   }
 } catch (e) {}
-// 2D/3D is remembered only once the viewer picks it with the toggle (older saves always held '3d')
+// 2D/3D is remembered only once the viewer picks it (toggle or start screen); otherwise the default applies
 try { S.render = localStorage.getItem('blow-candle-render') || DEFAULTS.render; } catch (e) { S.render = DEFAULTS.render; }
 // URL overrides, e.g. ?num=25 or ?count=3
 try {
@@ -1438,6 +1443,7 @@ function showToast(msg) {
   clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.add('off'), 4500);
 }
 function updateRenderBtn() {
+  document.querySelectorAll('#startRender button').forEach(x => x.classList.toggle('on', x.dataset.r === S.render));
   const b = $('btnRender');
   b.textContent = S.render === '2d' ? '2D' : r3State === 'loading' ? '3D…' : '3D';
   b.title = S.render === '2d' ? '目前是 2D 畫面，點一下切換成 3D' : '目前是 3D 畫面，點一下切換成 2D';
@@ -1447,13 +1453,17 @@ function applyRenderMode() {
   if (R3) R3.show(!!use3D());
   updateRenderBtn();
 }
-$('btnRender').addEventListener('click', () => {
-  S.render = S.render === '3d' ? '2d' : '3d';
+function setRender(r) {
+  S.render = r;
   if (S.render === '3d' && r3State === 'failed') { showToast('這台裝置無法顯示 3D 畫面，維持 2D。'); S.render = '2d'; }
   else if (S.render === '3d') ensure3D();
   save();
   try { localStorage.setItem('blow-candle-render', S.render); } catch (e) {}
   applyRenderMode();
+}
+$('btnRender').addEventListener('click', () => setRender(S.render === '3d' ? '2d' : '3d'));
+$('startRender').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (b && b.dataset.r !== S.render) setRender(b.dataset.r);
 });
 
 

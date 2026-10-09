@@ -6,7 +6,7 @@ const path = require('path');
       args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream', '--use-file-for-fake-audio-capture=' + path.resolve('wav/' + wav + '.wav')] });
     const ctx = await b.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, permissions: ['microphone'] });
     const p = await ctx.newPage(); const errs = []; p.on('pageerror', e => errs.push(e.message));
-    await p.goto('http://localhost:8765/?count=5'); await p.tap('#btnStart');
+    await p.goto('http://localhost:8765/?count=5&r=2d'); await p.tap('#btnStart');
     const t0 = Date.now(); const T = () => ((Date.now() - t0) / 1000).toFixed(1);
     await p.waitForTimeout(350);
     await p.tap('#btnSettings'); await p.waitForTimeout(100);

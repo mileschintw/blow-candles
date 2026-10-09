@@ -1,7 +1,9 @@
 const { chromium } = require('playwright-core');
 const path = require('path');
 const files = process.argv[2].split(',');
-const query = process.argv[3] || '';
+// the detector doesn't depend on the view; run in 2D so no three.js download or software WebGL is involved
+const q0 = process.argv[3] || '';
+const query = /[?&]r=/.test(q0) ? q0 : q0 + (q0.includes('?') ? '&' : '?') + 'r=2d';
 const secs = +(process.argv[4] || 8.5);
 async function run(name) {
   const browser = await chromium.launch({ executablePath: process.env.CHROME || 'C:/Program Files/Google/Chrome/Application/chrome.exe', headless: true,
