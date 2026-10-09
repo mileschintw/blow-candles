@@ -156,67 +156,75 @@
 <canvas id="scene"></canvas>
 
 <header class="top">
-  <button id="btnRelight" class="icon-btn" aria-label="全部重新點燃">🔥 重新點燃</button>
+  <button id="btnRelight" class="icon-btn" data-t="relight" data-t-aria="relightAria" aria-label="全部重新點燃">🔥 重新點燃</button>
   <div class="right">
-    <button id="btnRender" class="icon-btn mode" aria-label="切換 2D／3D 畫面">3D</button>
-    <button id="btnSettings" class="icon-btn round" aria-label="設定">⚙️</button>
+    <button id="btnRender" class="icon-btn mode" data-t-aria="renderAria" aria-label="切換 2D／3D 畫面">3D</button>
+    <button id="btnSettings" class="icon-btn round" data-t-aria="settings" aria-label="設定">⚙️</button>
   </div>
 </header>
 <div id="hint" class="hint">對著麥克風吹氣 🌬️</div>
 
-<button id="meterPill" class="meter-pill" aria-label="吹氣強度，點一下調整靈敏度">
+<button id="meterPill" class="meter-pill" data-t-aria="meterAria" aria-label="吹氣強度，點一下調整靈敏度">
   <span id="micIc">🎤</span>
   <span class="meter"><span class="fill" id="pillFill"></span><span class="mark" id="pillMark"></span></span>
-  <span class="lbl">靈敏度</span>
+  <span class="lbl" data-t="sens">靈敏度</span>
 </button>
 
 <div id="toast" class="toast off" role="status"></div>
 
 <div id="celebrate" class="celebrate hidden" aria-live="polite">
   <div class="msg" id="celebrateMsg">生日快樂！</div>
-  <div class="sub">許個願吧 ✨</div>
-  <button id="btnAgain">再點一次 🔥</button>
+  <div class="sub" data-t="wish">許個願吧 ✨</div>
+  <button id="btnAgain" data-t="again">再點一次 🔥</button>
 </div>
 
 <div id="sheetBackdrop" class="backdrop hidden"></div>
-<section id="sheet" class="sheet" aria-hidden="true" aria-label="設定">
+<section id="sheet" class="sheet" aria-hidden="true" data-t-aria="settings" aria-label="設定">
   <div class="grab"></div>
-  <h2>設定</h2>
+  <h2 data-t="settings">設定</h2>
   <div class="field">
-    <label>蠟燭樣式</label>
+    <label data-t="candleStyle">蠟燭樣式</label>
     <div class="seg" id="modeSeg">
-      <button data-mode="single">單支蠟燭</button>
-      <button data-mode="number">數字蠟燭</button>
+      <button data-mode="single" data-t="single">單支蠟燭</button>
+      <button data-mode="number" data-t="number">數字蠟燭</button>
     </div>
   </div>
   <div class="field" id="fCount">
-    <label>蠟燭數量（1–40）</label>
+    <label data-t="count">蠟燭數量（1–40）</label>
     <div class="stepper">
-      <button id="cMinus" aria-label="減少">−</button>
+      <button id="cMinus" data-t-aria="fewer" aria-label="減少">−</button>
       <input id="countInput" type="number" inputmode="numeric" min="1" max="40">
-      <button id="cPlus" aria-label="增加">＋</button>
+      <button id="cPlus" data-t-aria="more" aria-label="增加">＋</button>
     </div>
   </div>
   <div class="field" id="fNumber">
-    <label>要顯示的數字（最多 4 位）</label>
-    <input id="numberInput" type="text" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="例如 25">
+    <label data-t="numLabel">要顯示的數字（最多 4 位）</label>
+    <input id="numberInput" type="text" inputmode="numeric" maxlength="4" autocomplete="off" data-t-ph="numPh" placeholder="例如 25">
   </div>
-  <div class="field row"><label for="cakeToggle">顯示蛋糕</label><input type="checkbox" id="cakeToggle" class="switch"></div>
+  <div class="field row"><label for="cakeToggle" data-t="cake">顯示蛋糕</label><input type="checkbox" id="cakeToggle" class="switch"></div>
   <div class="field">
-    <label>吹熄門檻 <b id="thVal">50</b></label>
+    <label><span data-t="threshold">吹熄門檻</span> <b id="thVal">50</b></label>
     <div class="meter big"><span class="fill" id="bigFill"></span><span class="amb" id="bigAmb"></span><span class="mark" id="bigMark"></span></div>
-    <input type="range" id="thSlider" min="5" max="95" step="1" aria-label="吹熄門檻">
-    <div class="scale"><span>← 更敏感</span><span>需要更用力 →</span></div>
-    <p class="tip">彩色條是「比周圍環境大聲多少」。吹氣讓它超過白線，蠟燭就會熄滅；淡灰線是最近環境噪音的高點，白線要放在它右邊。說話聲會被自動過濾。</p>
-    <button id="btnCalib" class="calib-btn">🎯 自動校準（建議先做一次）</button>
+    <input type="range" id="thSlider" min="5" max="95" step="1" data-t-aria="threshold" aria-label="吹熄門檻">
+    <div class="scale"><span data-t="moreSens">← 更敏感</span><span data-t="harder">需要更用力 →</span></div>
+    <p class="tip" data-t="tip">彩色條是「比周圍環境大聲多少」。吹氣讓它超過白線，蠟燭就會熄滅；淡灰線是最近環境噪音的高點，白線要放在它右邊。說話聲會被自動過濾。</p>
+    <button id="btnCalib" class="calib-btn" data-t="calibBtn">🎯 自動校準（建議先做一次）</button>
   </div>
   <div class="field">
-    <label>吹熄後的祝福文字</label>
+    <label data-t="msgLabel">吹熄後的祝福文字</label>
     <input id="msgInput" class="msg" type="text" maxlength="24" autocomplete="off">
   </div>
-  <div class="field row"><label for="sfxToggle">音效</label><input type="checkbox" id="sfxToggle" class="switch"></div>
-  <div class="field row"><label for="songToggle">全部吹熄後播放生日快樂歌</label><input type="checkbox" id="songToggle" class="switch"></div>
-  <button id="btnDone" class="primary">完成</button>
+  <div class="field row"><label for="sfxToggle" data-t="sfx">音效</label><input type="checkbox" id="sfxToggle" class="switch"></div>
+  <div class="field row"><label for="songToggle" data-t="song">全部吹熄後播放生日快樂歌</label><input type="checkbox" id="songToggle" class="switch"></div>
+  <div class="field">
+    <label data-t="lang">語言／Language</label>
+    <div class="seg" id="langSeg">
+      <button data-lang="auto" data-t="auto">自動</button>
+      <button data-lang="zh" lang="zh-Hant">繁體中文</button>
+      <button data-lang="en" lang="en">English</button>
+    </div>
+  </div>
+  <button id="btnDone" class="primary" data-t="done">完成</button>
 </section>
 
 <div id="calib" class="overlay calib" hidden>
@@ -234,12 +242,12 @@
 <div id="start" class="overlay">
   <div class="card">
     <div class="logo">🕯️</div>
-    <h1>吹蠟燭</h1>
-    <p>允許使用麥克風後，<br>對著手機底部的麥克風吹氣，就能把蠟燭吹熄。</p>
-    <div class="start-render"><span class="cap">畫面</span>
-      <div class="seg" id="startRender"><button data-r="3d">3D 立體</button><button data-r="2d">2D 平面</button></div></div>
-    <button id="btnStart" class="primary">開始 🎂</button>
-    <button id="btnNoMic" class="ghost">不使用麥克風（點蠟燭吹熄）</button>
+    <h1 data-t="appName">吹蠟燭</h1>
+    <p data-t-html="intro">允許使用麥克風後，<br>對著手機底部的麥克風吹氣，就能把蠟燭吹熄。</p>
+    <div class="start-render"><span class="cap" data-t="view">畫面</span>
+      <div class="seg" id="startRender"><button data-r="3d" data-t="v3d">3D 立體</button><button data-r="2d" data-t="v2d">2D 平面</button></div></div>
+    <button id="btnStart" class="primary" data-t="start">開始 🎂</button>
+    <button id="btnNoMic" class="ghost" data-t="noMic">不使用麥克風（點蠟燭吹熄）</button>
     <p class="err" id="startErr"></p>
   </div>
 </div>
@@ -252,9 +260,91 @@ const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const lerp = (a, b, t) => a + (b - a) * t;
 const rand = (a, b) => a + Math.random() * (b - a);
 
+/* ---------------- language: Traditional Chinese for zh-TW/HK/MO/Hant browsers, English for everyone else ---------------- */
+const STR = {
+  zh: {
+    appName: '吹蠟燭', relight: '🔥 重新點燃', relightAria: '全部重新點燃', renderAria: '切換 2D／3D 畫面', settings: '設定',
+    meterAria: '吹氣強度，點一下調整靈敏度', sens: '靈敏度', wish: '許個願吧 ✨', again: '再點一次 🔥',
+    candleStyle: '蠟燭樣式', single: '單支蠟燭', number: '數字蠟燭', count: '蠟燭數量（1–40）', fewer: '減少', more: '增加',
+    numLabel: '要顯示的數字（最多 4 位）', numPh: '例如 25', cake: '顯示蛋糕', threshold: '吹熄門檻',
+    moreSens: '← 更敏感', harder: '需要更用力 →',
+    tip: '彩色條是「比周圍環境大聲多少」。吹氣讓它超過白線，蠟燭就會熄滅；淡灰線是最近環境噪音的高點，白線要放在它右邊。說話聲會被自動過濾。',
+    calibBtn: '🎯 自動校準（建議先做一次）', msgLabel: '吹熄後的祝福文字', sfx: '音效', song: '全部吹熄後播放生日快樂歌',
+    lang: '語言／Language', auto: '自動', done: '完成',
+    intro: '允許使用麥克風後，<br>對著手機底部的麥克風吹氣，就能把蠟燭吹熄。', view: '畫面', v3d: '3D 立體', v2d: '2D 平面',
+    start: '開始 🎂', noMic: '不使用麥克風（點蠟燭吹熄）', defMsg: '生日快樂！',
+    hintTap: '點一下蠟燭就能吹熄 👆', hintBlow: '對著麥克風吹氣 🌬️', hintCal: '　吹不熄？到 ⚙️ 做自動校準',
+    cancel: '取消', close: '關閉', retry: '再試一次', ok: '好',
+    calNoMicT: '需要麥克風', calNoMic: '目前沒有開啟麥克風，無法校準。請重新整理頁面，按「開始」並允許麥克風。',
+    calQuietT: '先保持安靜', calQuiet: '請安靜 2 秒，讓我聽聽周圍環境的聲音…',
+    calBlowT: '現在請吹氣', calBlow: '像吹蠟燭一樣，對著手機底部的麥克風持續吹 3 秒。',
+    calFailT: '沒有聽到明顯的吹氣聲', calFail: '請把嘴靠近手機底部的麥克風（約 5–15 公分），再試一次。',
+    calDoneT: '校準完成', calDone: (db, th) => `你的吹氣比環境大聲約 ${db} dB，門檻已設為 ${th}。之後用差不多的力道吹就能吹熄。`,
+    is2D: '目前是 2D 畫面，點一下切換成 3D', is3D: '目前是 3D 畫面，點一下切換成 2D', no3D: '這台裝置無法顯示 3D 畫面，維持 2D。',
+    load3DFail: '3D 畫面無法載入（需要較新的瀏覽器與網路連線），已改用 2D。',
+    unstable3D: '這台裝置的 3D 繪圖不穩定，已改用 2D。', lost3D: '3D 繪圖暫時中斷，正在恢復…',
+    opening: '正在開啟麥克風…', retryMic: '再試一次 🎤', micFail: '無法使用麥克風。',
+    micHttps: '這個網址不是 HTTPS，瀏覽器不允許使用麥克風。請改用 https:// 網址開啟。',
+    micFramed: '這個頁面嵌在別的網站裡（例如 claude.ai），那裡不允許使用麥克風。要用吹氣，請在自己的 HTTPS 網址開啟這個檔案。',
+    micDenied: '麥克風權限被拒絕了。請到瀏覽器的網站設定允許麥克風後重新整理。', micNone: '找不到麥克風裝置。',
+    micTapMode: ' 你也可以先用「點蠟燭吹熄」模式。',
+  },
+  en: {
+    appName: 'Blow the Candles', relight: '🔥 Relight', relightAria: 'Relight all candles', renderAria: 'Switch between 2D and 3D', settings: 'Settings',
+    meterAria: 'Blow strength. Tap to adjust sensitivity', sens: 'Sensitivity', wish: 'Make a wish ✨', again: 'Light them again 🔥',
+    candleStyle: 'Candle style', single: 'Candles', number: 'Number candles', count: 'Number of candles (1–40)', fewer: 'Fewer', more: 'More',
+    numLabel: 'Number to show (up to 4 digits)', numPh: 'e.g. 25', cake: 'Show the cake', threshold: 'Blow threshold',
+    moreSens: '← More sensitive', harder: 'Needs a harder blow →',
+    tip: 'The coloured bar shows how much louder than the room you are. Blow past the white line and the candles go out. The faint grey line is the recent peak of room noise; keep the white line to its right. Talking is filtered out automatically.',
+    calibBtn: '🎯 Auto-calibrate (recommended first)', msgLabel: 'Message once the candles are out', sfx: 'Sound effects', song: 'Play Happy Birthday when all are out',
+    lang: 'Language／語言', auto: 'Auto', done: 'Done',
+    intro: 'Allow the microphone, then blow at the<br>bottom of your phone to put the candles out.', view: 'View', v3d: '3D', v2d: '2D (lighter)',
+    start: 'Start 🎂', noMic: 'No microphone (tap the candles)', defMsg: 'Happy Birthday!',
+    hintTap: 'Tap a candle to blow it out 👆', hintBlow: 'Blow at the microphone 🌬️', hintCal: '  Not working? Auto-calibrate in ⚙️',
+    cancel: 'Cancel', close: 'Close', retry: 'Try again', ok: 'OK',
+    calNoMicT: 'Microphone needed', calNoMic: 'The microphone is off, so calibration can\'t run. Reload the page, tap Start and allow the microphone.',
+    calQuietT: 'Stay quiet', calQuiet: 'Stay quiet for 2 seconds while I listen to the room…',
+    calBlowT: 'Now blow', calBlow: 'Blow at the bottom of the phone for 3 seconds, as if blowing out candles.',
+    calFailT: 'No clear blowing heard', calFail: 'Hold your mouth closer to the microphone at the bottom of the phone (5–15 cm) and try again.',
+    calDoneT: 'Calibrated', calDone: (db, th) => `Your blow is about ${db} dB louder than the room. The threshold is now ${th}; blow about as hard as that to put the candles out.`,
+    is2D: '2D view. Tap to switch to 3D', is3D: '3D view. Tap to switch to 2D', no3D: 'This device can\'t show the 3D view, so it stays in 2D.',
+    load3DFail: 'The 3D view couldn\'t load (it needs a recent browser and a network connection). Using 2D instead.',
+    unstable3D: '3D drawing is unstable on this device. Switched to 2D.', lost3D: '3D drawing was interrupted. Recovering…',
+    opening: 'Opening the microphone…', retryMic: 'Try again 🎤', micFail: 'The microphone isn\'t available.',
+    micHttps: 'This address isn\'t HTTPS, so the browser blocks the microphone. Open it from an https:// address.',
+    micFramed: 'This page is embedded in another site (such as claude.ai), which blocks the microphone. To blow, open the file from your own HTTPS address.',
+    micDenied: 'Microphone permission was denied. Allow it in the browser\'s site settings, then reload.', micNone: 'No microphone was found.',
+    micTapMode: ' You can still use tap mode for now.',
+  },
+};
+const DEFAULT_MSGS = [STR.zh.defMsg, STR.en.defMsg];
+function detectLang() {
+  let l = '';
+  try { l = (navigator.languages && navigator.languages[0]) || navigator.language || ''; } catch (e) {}
+  return /^zh[-_](hant|tw|hk|mo)\b/i.test(l) ? 'zh' : 'en';
+}
+let LANG = 'en';
+function tr(k, ...a) { const v = STR[LANG][k]; return typeof v === 'function' ? v(...a) : v; }
+const wishText = () => S.msg == null ? tr('defMsg') : S.msg;
+function applyLang() {
+  LANG = S.lang === 'auto' ? detectLang() : S.lang;
+  document.documentElement.lang = LANG === 'zh' ? 'zh-Hant' : 'en';
+  document.title = tr('appName');
+  document.querySelectorAll('[data-t]').forEach(el => { el.textContent = tr(el.dataset.t); });
+  document.querySelectorAll('[data-t-html]').forEach(el => { el.innerHTML = tr(el.dataset.tHtml); });
+  document.querySelectorAll('[data-t-aria]').forEach(el => el.setAttribute('aria-label', tr(el.dataset.tAria)));
+  document.querySelectorAll('[data-t-ph]').forEach(el => el.setAttribute('placeholder', tr(el.dataset.tPh)));
+  {
+    updateMicUI(); updateRenderBtn();
+    $('celebrateMsg').textContent = wishText() || '🎉';
+    $('msgInput').value = wishText();
+    if (!calEl.hidden) closeCalib();
+  }
+}
+
 /* ---------------- settings ---------------- */
 const KEY = 'blow-candle-v2';
-const DEFAULTS = { mode: 'single', count: 5, number: '18', threshold: 40, msg: '生日快樂！', sfx: true, song: true, calibrated: false, render: '3d', cake: true };
+const DEFAULTS = { mode: 'single', count: 5, number: '18', threshold: 40, msg: null, sfx: true, song: true, calibrated: false, render: '3d', cake: true, lang: 'auto' };
 const S = Object.assign({}, DEFAULTS);
 try {
   const raw = localStorage.getItem(KEY);
@@ -273,6 +363,7 @@ try {
   if (q.has('count')) { S.mode = 'single'; S.count = +q.get('count'); }
   if (q.has('th')) S.threshold = +q.get('th');
   if (q.has('cake')) S.cake = q.get('cake') !== '0';
+  if (q.has('lang')) S.lang = q.get('lang');
   if (q.has('r')) S.render = q.get('r') === '2d' ? '2d' : '3d';
 } catch (e) {}
 function sanitize() {
@@ -280,7 +371,9 @@ function sanitize() {
   S.count = clamp(Math.round(+S.count) || 1, 1, 40);
   S.number = String(S.number || '').replace(/\D/g, '').slice(0, 4) || '1';
   S.threshold = clamp(Math.round(+S.threshold) || 40, 5, 95);
-  S.msg = String(S.msg == null ? DEFAULTS.msg : S.msg).slice(0, 24);
+  // the default wish follows the language; a saved copy of either default counts as 'default'
+  S.msg = S.msg == null || DEFAULT_MSGS.includes(S.msg) ? null : String(S.msg).slice(0, 24);
+  S.lang = ['zh', 'en'].includes(S.lang) ? S.lang : 'auto';
   S.sfx = !!S.sfx; S.song = !!S.song; S.calibrated = !!S.calibrated; S.cake = S.cake !== false;
   S.render = S.render === '3d' ? '3d' : '2d';
 }
@@ -741,7 +834,7 @@ function litCount() { let n = 0; for (const c of cands) if (c.lit || c.pending) 
 /* ---- celebration ---- */
 const celebrateEl = $('celebrate');
 function showCelebrate() {
-  $('celebrateMsg').textContent = S.msg || '🎉';
+  $('celebrateMsg').textContent = wishText() || '🎉';
   celebrateEl.classList.remove('hidden');
   const m = $('celebrateMsg'); m.style.animation = 'none'; void m.offsetWidth; m.style.animation = '';
   $('hint').classList.add('off');
@@ -1307,15 +1400,15 @@ function updateMarks() {
 }
 function updateMicUI() {
   $('micIc').textContent = micOk ? '🎤' : '👆';
-  $('hint').textContent = !micOk ? '點一下蠟燭就能吹熄 👆'
-    : S.calibrated ? '對著麥克風吹氣 🌬️' : '對著麥克風吹氣 🌬️　吹不熄？到 ⚙️ 做自動校準';
+  $('hint').textContent = !micOk ? tr('hintTap') : S.calibrated ? tr('hintBlow') : tr('hintBlow') + tr('hintCal');
 }
 function syncForm() {
   document.querySelectorAll('#modeSeg button').forEach(b => b.classList.toggle('on', b.dataset.mode === S.mode));
+  document.querySelectorAll('#langSeg button').forEach(b => b.classList.toggle('on', b.dataset.lang === S.lang));
   $('fCount').classList.toggle('hidden-field', S.mode !== 'single');
   $('fNumber').classList.toggle('hidden-field', S.mode !== 'number');
   $('countInput').value = S.count; $('numberInput').value = S.number;
-  $('msgInput').value = S.msg; $('sfxToggle').checked = S.sfx; $('cakeToggle').checked = S.cake; $('songToggle').checked = S.song;
+  $('msgInput').value = wishText(); $('sfxToggle').checked = S.sfx; $('cakeToggle').checked = S.cake; $('songToggle').checked = S.song;
   updateMarks();
 }
 function openSheet() {
@@ -1355,7 +1448,11 @@ $('numberInput').addEventListener('input', e => {
 });
 $('numberInput').addEventListener('blur', e => { if (!e.target.value) e.target.value = S.number; });
 $('thSlider').addEventListener('input', e => { S.threshold = +e.target.value; updateMarks(); save(); });
-$('msgInput').addEventListener('input', e => { S.msg = e.target.value.slice(0, 24); save(); if (!celebrateEl.classList.contains('hidden')) $('celebrateMsg').textContent = S.msg || '🎉'; });
+$('msgInput').addEventListener('input', e => { const v = e.target.value.slice(0, 24); S.msg = v === tr('defMsg') ? null : v; save(); if (!celebrateEl.classList.contains('hidden')) $('celebrateMsg').textContent = wishText() || '🎉'; });
+$('langSeg').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b || b.dataset.lang === S.lang) return;
+  S.lang = b.dataset.lang; save(); applyLang(); syncForm();
+});
 $('cakeToggle').addEventListener('change', e => {
   S.cake = e.target.checked; save();
   confetti.length = 0; streamers.length = 0; if (R3) R3.clearConfetti();   // nothing left resting on a cake that's gone
@@ -1370,14 +1467,14 @@ function setCal(icon, title, text, prog, btn, btn2) {
   $('calIcon').textContent = icon; $('calTitle').textContent = title; $('calText').textContent = text;
   $('calProg').style.width = (prog * 100) + '%';
   $('calBtn').hidden = !btn; if (btn) $('calBtn').textContent = btn;
-  $('calBtn2').textContent = btn2 || '取消';
+  $('calBtn2').textContent = btn2 || tr('cancel');
 }
 function startCalib() {
   calEl.hidden = false;
-  if (!micOk) { setCal('🎤', '需要麥克風', '目前沒有開啟麥克風，無法校準。請重新整理頁面，按「開始」並允許麥克風。', 0, null, '關閉'); return; }
+  if (!micOk) { setCal('🎤', tr('calNoMicT'), tr('calNoMic'), 0, null, tr('close')); return; }
   ensureAudio();
   det.calib = { phase: 'quiet', t: 0, quiet: [], blow: [] };
-  setCal('🤫', '先保持安靜', '請安靜 2 秒，讓我聽聽周圍環境的聲音…', 0, null, '取消');
+  setCal('🤫', tr('calQuietT'), tr('calQuiet'), 0, null, tr('cancel'));
 }
 function pct(arr, q) { const a = arr.slice().sort((x, y) => x - y); return a[Math.min(a.length - 1, Math.floor(q * (a.length - 1)))]; }
 function updateCalib(dt) {
@@ -1388,7 +1485,7 @@ function updateCalib(dt) {
     if (c.t >= 2) {
       c.phase = 'blow'; c.t = 0;
       det.floor = pct(c.quiet, 0.5);
-      setCal('🌬️', '現在請吹氣', '像吹蠟燭一樣，對著手機底部的麥克風持續吹 3 秒。', 0, null, '取消');
+      setCal('🌬️', tr('calBlowT'), tr('calBlow'), 0, null, tr('cancel'));
     }
   } else {
     if (c.t > 0.3) c.blow.push(det.lowDb);
@@ -1402,14 +1499,14 @@ function finishCalib() {
   const qm = pct(c.quiet, 0.5), q80 = pct(c.quiet, 0.8), b = pct(c.blow, 0.6);
   const noise = clamp(q80 - qm + 2, 2, 15), blowEx = b - qm;
   if (!c.quiet.length || !c.blow.length || !isFinite(blowEx) || blowEx < noise + 6) {
-    setCal('😕', '沒有聽到明顯的吹氣聲', '請把嘴靠近手機底部的麥克風（約 5–15 公分），再試一次。', 0, '再試一次', '關閉');
+    setCal('😕', tr('calFailT'), tr('calFail'), 0, tr('retry'), tr('close'));
     return;
   }
   det.floor = qm; det.dose = 0; det.ambPeak = 0;
   const thDb = clamp(noise + 0.42 * (blowEx - noise), 4, 36);
   S.threshold = clamp(Math.round(thDb * DB_SCALE), 5, 95); S.calibrated = true;
   save(); updateMarks(); updateMicUI();
-  setCal('✅', '校準完成', `你的吹氣比環境大聲約 ${Math.round(blowEx)} dB，門檻已設為 ${S.threshold}。之後用差不多的力道吹就能吹熄。`, 1, null, '好');
+  setCal('✅', tr('calDoneT'), tr('calDone', Math.round(blowEx), S.threshold), 1, null, tr('ok'));
 }
 function closeCalib() { det.calib = null; calEl.hidden = true; }
 $('btnCalib').addEventListener('click', startCalib);
@@ -1466,7 +1563,7 @@ function updateRenderBtn() {
   document.querySelectorAll('#startRender button').forEach(x => x.classList.toggle('on', x.dataset.r === S.render));
   const b = $('btnRender');
   b.textContent = S.render === '2d' ? '2D' : r3State === 'loading' ? '3D…' : '3D';
-  b.title = S.render === '2d' ? '目前是 2D 畫面，點一下切換成 3D' : '目前是 3D 畫面，點一下切換成 2D';
+  b.title = S.render === '2d' ? tr('is2D') : tr('is3D');
 }
 function applyRenderMode() {
   backdropClean = false;
@@ -1475,7 +1572,7 @@ function applyRenderMode() {
 }
 function setRender(r) {
   S.render = r;
-  if (S.render === '3d' && r3State === 'failed') { showToast('這台裝置無法顯示 3D 畫面，維持 2D。'); S.render = '2d'; }
+  if (S.render === '3d' && r3State === 'failed') { showToast(tr('no3D')); S.render = '2d'; }
   else if (S.render === '3d') ensure3D();
   save();
   try { localStorage.setItem('blow-candle-render', S.render); } catch (e) {}
@@ -1500,22 +1597,21 @@ function begin() {
 }
 $('btnStart').addEventListener('click', async () => {
   ensureAudio();
-  $('btnStart').disabled = true; $('btnStart').textContent = '正在開啟麥克風…';
+  $('btnStart').disabled = true; $('btnStart').textContent = tr('opening');
   try {
     await startMic();
     begin();
   } catch (err) {
     console.warn('mic failed', err);
-    let msg = '無法使用麥克風。';
-    if (err && err.message === 'insecure') msg = '這個網址不是 HTTPS，瀏覽器不允許使用麥克風。請改用 https:// 網址開啟。';
+    let msg = tr('micFail');
+    if (err && err.message === 'insecure') msg = tr('micHttps');
     else if (err && (err.name === 'NotAllowedError' || err.name === 'SecurityError')) {
       let framed = false; try { framed = window.top !== window.self; } catch (e) { framed = true; }
-      msg = framed ? '這個頁面嵌在別的網站裡（例如 claude.ai），那裡不允許使用麥克風。要用吹氣，請在自己的 HTTPS 網址開啟這個檔案。'
-                   : '麥克風權限被拒絕了。請到瀏覽器的網站設定允許麥克風後重新整理。';
+      msg = framed ? tr('micFramed') : tr('micDenied');
     }
-    else if (err && err.name === 'NotFoundError') msg = '找不到麥克風裝置。';
-    $('startErr').textContent = msg + ' 你也可以先用「點蠟燭吹熄」模式。';
-    $('btnStart').disabled = false; $('btnStart').textContent = '再試一次 🎤';
+    else if (err && err.name === 'NotFoundError') msg = tr('micNone');
+    $('startErr').textContent = msg + tr('micTapMode');
+    $('btnStart').disabled = false; $('btnStart').textContent = tr('retryMic');
   }
 });
 $('btnNoMic').addEventListener('click', () => { ensureAudio(); micOk = false; begin(); });
@@ -1571,7 +1667,7 @@ async function ensure3D() {
   } catch (e) {
     console.warn('3D unavailable', e);
     r3State = 'failed'; R3 = null;
-    if (S.render === '3d') showToast('3D 畫面無法載入（需要較新的瀏覽器與網路連線），已改用 2D。');
+    if (S.render === '3d') showToast(tr('load3DFail'));
   }
   updateRenderBtn(); applyRenderMode();
 }
@@ -1670,7 +1766,7 @@ function create3D(THREE) {
     e.preventDefault(); losses++;
     r3State = losses >= 3 ? 'failed' : 'lost';
     applyRenderMode();
-    showToast(losses >= 3 ? '這台裝置的 3D 繪圖不穩定，已改用 2D。' : '3D 繪圖暫時中斷，正在恢復…');
+    showToast(losses >= 3 ? tr('unstable3D') : tr('lost3D'));
   });
   canvas3.addEventListener('webglcontextrestored', () => {
     if (r3State === 'failed') return;
@@ -2309,6 +2405,7 @@ function create3D(THREE) {
   };
 }
 
+applyLang();
 genStatic();
 resize();
 buildCandles(false);

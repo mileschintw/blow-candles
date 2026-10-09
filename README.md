@@ -25,11 +25,13 @@ The whole app is a single [`index.html`](index.html) with no build step.
   - A breathy puff with a fading smoke hiss, and a match strike when relighting.
   - When every candle is out, Happy Birthday plays and confetti falls.
   - All sound is synthesized live in the browser, with no audio files.
+- **English and Traditional Chinese:** browsers set to Traditional Chinese (zh-TW, zh-HK, zh-MO, zh-Hant) get Chinese; everyone else gets English. Settings has an override.
 - **URL parameters:**
   - `?num=25`: number candles
   - `?count=3`: number of regular candles
   - `?r=2d` / `?r=3d`: open in 2D or 3D
   - `?cake=0`: candles without the cake
+  - `?lang=en` / `?lang=zh`: force the language
   - `?debug`: show detector readings
 
 ## Using and hosting it
