@@ -1030,6 +1030,8 @@ function renderOverlay() {
 /* ---------------- loop ---------------- */
 let last = performance.now();
 function frame(now) {
+  // 3D: skip every other refresh on 120 Hz+ screens (~60 fps) to save GPU and battery
+  if (use3D() && now - last < 10) { requestAnimationFrame(frame); return; }
   const dt = Math.min(0.05, Math.max(0, (now - last) / 1000)); last = now;
   update(dt);
   if (use3D()) { R3.render(dt); renderOverlay(); } else render();
@@ -1288,25 +1290,26 @@ window.candleDebug = {
   calibrate: startCalib,
   render() { return { mode: use3D() ? '3d' : '2d', r3State, info: R3 ? R3.info() : null }; },
   project3D(i) { return R3 ? R3.project(i) : null; },
+  loseContext3D() { if (R3) R3.loseContext(); },
   calText() { return calEl.hidden ? null : $('calTitle').textContent + ' | ' + $('calText').textContent; }
 };
 
 /* ================= 3D renderer (three.js, loaded on demand) =================
    Shares all candle state with the 2D version; only drawing and tap-picking differ.
-   Light: one shadow-casting point light at the centre of the lit flames plus up to
-   three unshadowed point lights for local groups, all flickering with the flames.
-   Flames are camera-facing shader quads (HDR colour -> bloom). */
-let R3 = null, r3State = 'idle';           // idle | loading | ready | failed
+   Built to stay light on phone GPUs:
+   - one unshadowed point light that follows the flames (plus hemisphere + bounce fill)
+   - candle shadows on the cake are cheap decals pointing away from the light, not shadow maps
+   - no post-processing: flame glow comes from one soft sprite per flame
+   - standard materials only, modest tessellation, 60 fps cap, dynamic resolution
+   - if the browser drops the WebGL context it is restored instead of giving up */
+let R3 = null, r3State = 'idle';           // idle | loading | ready | lost | failed
 const use3D = () => S.render === '3d' && r3State === 'ready' && R3;
 async function ensure3D() {
-  if (r3State === 'ready' || r3State === 'loading') return;
+  if (r3State === 'ready' || r3State === 'loading' || r3State === 'lost') return;
   r3State = 'loading'; updateRenderBtn();
   try {
     const THREE = await import('three');
-    const [a, b, c, d] = await Promise.all([
-      import('three/addons/postprocessing/EffectComposer.js'), import('three/addons/postprocessing/RenderPass.js'),
-      import('three/addons/postprocessing/UnrealBloomPass.js'), import('three/addons/postprocessing/OutputPass.js')]);
-    R3 = create3D(THREE, { EffectComposer: a.EffectComposer, RenderPass: b.RenderPass, UnrealBloomPass: c.UnrealBloomPass, OutputPass: d.OutputPass });
+    R3 = create3D(THREE);
     r3State = 'ready';
   } catch (e) {
     console.warn('3D unavailable', e);
@@ -1318,7 +1321,7 @@ async function ensure3D() {
 
 function traceDigit(ch) {
   // render the glyph, follow the pixel boundary, simplify + smooth into closed outlines
-  const FH = 180;
+  const FH = 160;
   const font = `900 ${FH}px "Arial Rounded MT Bold","Arial Black","Helvetica Neue",Arial,sans-serif`;
   const cnv = document.createElement('canvas'); let g = cnv.getContext('2d'); g.font = font;
   const m = g.measureText(ch);
@@ -1375,11 +1378,10 @@ function traceDigit(ch) {
   const gh = asc + desc, base = pad + asc + desc, cxm = w / 2;
   const polys = loops.map(p => {
     const half = p.length >> 1;
-    let s = rdp(p.slice(0, half + 1), 0.8).slice(0, -1).concat(rdp(p.slice(half).concat([p[0]]), 0.8).slice(0, -1));
-    s = chaikin(chaikin(s));
+    let s = rdp(p.slice(0, half + 1), 1.1).slice(0, -1).concat(rdp(p.slice(half).concat([p[0]]), 1.1).slice(0, -1));
+    s = chaikin(s);
     return s.map(([x, y]) => [(x - cxm) / gh, (base - y) / gh]);
   });
-  const area = p => { let a = 0; for (let i = 0; i < p.length; i++) { const q = p[(i + 1) % p.length]; a += p[i][0] * q[1] - q[0] * p[i][1]; } return a / 2; };
   const inside = (pt, poly) => {
     let c = false;
     for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
@@ -1388,49 +1390,67 @@ function traceDigit(ch) {
     }
     return c;
   };
-  const info = polys.map((p, i) => ({ p, a: Math.abs(area(p)), depth: polys.filter((q, j) => j !== i && inside(p[0], q)).length }));
+  const info = polys.map((p, i) => ({ p, depth: polys.filter((q, j) => j !== i && inside(p[0], q)).length }));
   const outers = info.filter(o => o.depth % 2 === 0), holes = info.filter(o => o.depth % 2 === 1);
-  let top = 0; for (const o of outers) for (const [, y] of o.p) top = Math.max(top, y);
+  let top = 0, minX = 1e9, maxX = -1e9;
+  for (const o of outers) for (const [x, y] of o.p) { top = Math.max(top, y); minX = Math.min(minX, x); maxX = Math.max(maxX, x); }
   let sx = 0, n = 0; for (const o of outers) for (const [x, y] of o.p) if (y > top - 0.035) { sx += x; n++; }
-  return { outers, holes, top, wickX: n ? sx / n : 0 };
+  return { outers, holes, top, wickX: n ? sx / n : 0, width: maxX - minX, inside };
 }
 
-function create3D(THREE, A) {
+function create3D(THREE) {
   const canvas3 = document.createElement('canvas'); canvas3.id = 'scene3d';
   document.body.insertBefore(canvas3, cv);
-  const renderer = new THREE.WebGLRenderer({ canvas: canvas3, antialias: true, powerPreference: 'high-performance' });
+  const renderer = new THREE.WebGLRenderer({ canvas: canvas3, antialias: true, powerPreference: 'default' });
   renderer.outputColorSpace = THREE.SRGBColorSpace;
-  renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.1;
-  renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap; renderer.shadowMap.autoUpdate = false;
-  canvas3.addEventListener('webglcontextlost', e => { e.preventDefault(); r3State = 'failed'; applyRenderMode(); showToast('3D 繪圖中斷，已改用 2D。'); });
+  renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.15;
+  renderer.info.autoReset = false;
+
+  // ---------- context loss: fall back to 2D for a moment, then come back at a lower resolution ----------
+  let losses = 0;
+  canvas3.addEventListener('webglcontextlost', e => {
+    e.preventDefault(); losses++;
+    r3State = losses >= 3 ? 'failed' : 'lost';
+    applyRenderMode();
+    showToast(losses >= 3 ? '這台裝置的 3D 繪圖不穩定，已改用 2D。' : '3D 繪圖暫時中斷，正在恢復…');
+  });
+  canvas3.addEventListener('webglcontextrestored', () => {
+    if (r3State === 'failed') return;
+    maxPr = Math.max(0.75, maxPr * 0.75); pr = Math.min(pr, maxPr); resize3();
+    r3State = 'ready'; applyRenderMode();
+    $('toast').classList.add('off');
+  });
 
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0x070409);
   scene.fog = new THREE.FogExp2(0x070409, 0.055);
   const camera = new THREE.PerspectiveCamera(30, 1, 0.05, 80);
-  const composer = new A.EffectComposer(renderer);
-  composer.addPass(new A.RenderPass(scene, camera));
-  const bloom = new A.UnrealBloomPass(new THREE.Vector2(256, 256), 0.55, 0.45, 0.92);
-  composer.addPass(bloom);
-  composer.addPass(new A.OutputPass());
 
   // ---------- textures ----------
   const canvasTex = (w, h, draw, srgb = true) => {
     const c = document.createElement('canvas'); c.width = w; c.height = h; draw(c.getContext('2d'), w, h);
-    const t = new THREE.CanvasTexture(c); if (srgb) t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t;
+    const t = new THREE.CanvasTexture(c); if (srgb) t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 2; return t;
   };
-  const radialTex = canvasTex(128, 128, (g, w, h) => {
+  const glowTex = canvasTex(128, 128, (g, w, h) => {      // bright core + long soft falloff (stands in for bloom)
     const gr = g.createRadialGradient(64, 64, 0, 64, 64, 64);
-    gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.2, 'rgba(255,255,255,.5)');
-    gr.addColorStop(0.5, 'rgba(255,255,255,.12)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+    gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.07, 'rgba(255,255,255,.75)');
+    gr.addColorStop(0.2, 'rgba(255,255,255,.28)'); gr.addColorStop(0.45, 'rgba(255,255,255,.08)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
     g.fillStyle = gr; g.fillRect(0, 0, w, h);
   });
-  const bokehTex = canvasTex(128, 128, g => {
-    const gr = g.createRadialGradient(64, 64, 0, 64, 64, 62);
-    gr.addColorStop(0, 'rgba(255,255,255,.55)'); gr.addColorStop(0.8, 'rgba(255,255,255,.75)');
-    gr.addColorStop(0.92, 'rgba(255,255,255,.9)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
-    g.fillStyle = gr; g.beginPath(); g.arc(64, 64, 62, 0, 7); g.fill();
-  });
+  const shadowTex = canvasTex(128, 32, (g, w, h) => {     // candle shadow: dark at the foot, fading out, soft edges
+    const img = g.createImageData(w, h);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const u = x / (w - 1), v = Math.abs(y / (h - 1) - 0.5) * 2;
+      const a = Math.pow(1 - u, 1.4) * (1 - Math.pow(v, 2.2)) * Math.min(1, u * 12 + 0.35);
+      img.data[(y * w + x) * 4 + 3] = a * 255;
+    }
+    g.putImageData(img, 0, 0);
+  }, false);
+  const blobTex = canvasTex(128, 128, (g, w, h) => {      // soft round contact shadow
+    const gr = g.createRadialGradient(64, 64, 20, 64, 64, 64);
+    gr.addColorStop(0, 'rgba(0,0,0,.85)'); gr.addColorStop(0.6, 'rgba(0,0,0,.35)'); gr.addColorStop(1, 'rgba(0,0,0,0)');
+    g.fillStyle = gr; g.fillRect(0, 0, w, h);
+  }, false);
   const woodTex = canvasTex(512, 512, (g, w, h) => {
     g.fillStyle = '#3b2317'; g.fillRect(0, 0, w, h);
     for (let i = 0; i < 300; i++) {
@@ -1466,13 +1486,13 @@ function create3D(THREE, A) {
     const t = stripeCache.get(color).clone(); t.needsUpdate = true; return t;
   }
 
-  // ---------- materials ----------
+  // ---------- materials (standard PBR only) ----------
   const M = {
     table: new THREE.MeshStandardMaterial({ map: woodTex, roughness: 0.6 }),
-    plate: new THREE.MeshPhysicalMaterial({ color: 0xf4eff3, roughness: 0.16, clearcoat: 1, clearcoatRoughness: 0.06, side: THREE.DoubleSide }),
-    sponge: new THREE.MeshPhysicalMaterial({ color: 0xf8b6cb, roughness: 0.62, sheen: 0.7, sheenColor: new THREE.Color(0xffd6e4), sheenRoughness: 0.5 }),
-    glaze: new THREE.MeshPhysicalMaterial({ color: 0xffffff, roughness: 0.2, clearcoat: 0.8, clearcoatRoughness: 0.12, side: THREE.DoubleSide }),
-    pearl: new THREE.MeshPhysicalMaterial({ color: 0xfffafc, roughness: 0.12, iridescence: 0.8, iridescenceIOR: 1.5, clearcoat: 1 }),
+    plate: new THREE.MeshStandardMaterial({ color: 0xf4eff3, roughness: 0.18, side: THREE.DoubleSide }),
+    sponge: new THREE.MeshStandardMaterial({ color: 0xf8b6cb, roughness: 0.62 }),
+    glaze: new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.24, side: THREE.DoubleSide }),
+    pearl: new THREE.MeshStandardMaterial({ color: 0xfff4f8, roughness: 0.16, metalness: 0.15 }),
     dot: new THREE.MeshStandardMaterial({ roughness: 0.3 }),
     sprinkle: new THREE.MeshStandardMaterial({ roughness: 0.35 }),
     wick: new THREE.MeshStandardMaterial({ color: 0x1b130e, roughness: 1 }),
@@ -1482,19 +1502,25 @@ function create3D(THREE, A) {
   const R = 1, Y0 = 0.04, CH = 0.66, T = Y0 + CH;
   const V2 = (x, y) => new THREE.Vector2(x, y);
   const table = new THREE.Mesh(new THREE.PlaneGeometry(40, 40), M.table);
-  table.rotation.x = -Math.PI / 2; table.receiveShadow = true; scene.add(table);
+  table.rotation.x = -Math.PI / 2; scene.add(table);
+  const flatDecal = (tex, size, y, opacity) => {
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(size, size), new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, opacity, color: 0x000000 }));
+    m.rotation.x = -Math.PI / 2; m.position.y = y; scene.add(m); return m;
+  };
+  flatDecal(blobTex, 3.6, 0.003, 0.8);                      // plate on the table
   const plate = new THREE.Mesh(new THREE.LatheGeometry([V2(0, 0.001), V2(1.2, 0.001), V2(1.3, 0.012), V2(1.42, 0.05), V2(1.445, 0.064),
-    V2(1.42, 0.07), V2(1.3, 0.045), V2(1.15, Y0), V2(0, Y0)], 96), M.plate);
-  plate.castShadow = true; plate.receiveShadow = true; scene.add(plate);
-  const body = new THREE.Mesh(new THREE.LatheGeometry([V2(0, Y0), V2(R - 0.03, Y0), V2(R, Y0 + 0.03), V2(R, T - 0.01), V2(R - 0.01, T)], 128), M.sponge);
-  body.castShadow = true; body.receiveShadow = true; scene.add(body);
+    V2(1.42, 0.07), V2(1.3, 0.045), V2(1.15, Y0), V2(0, Y0)], 64), M.plate);
+  scene.add(plate);
+  flatDecal(blobTex, 2.45, Y0 + 0.002, 0.55);               // cake on the plate
+  const body = new THREE.Mesh(new THREE.LatheGeometry([V2(0, Y0), V2(R - 0.03, Y0), V2(R, Y0 + 0.03), V2(R, T - 0.01), V2(R - 0.01, T)], 72), M.sponge);
+  scene.add(body);
   const capProfile = [V2(0, T + 0.036), V2(0.5, T + 0.035), V2(0.88, T + 0.031), V2(0.97, T + 0.022), V2(1.012, T + 0.004), V2(1.022, T - 0.026)];
-  const cap = new THREE.Mesh(new THREE.LatheGeometry(capProfile, 128), M.glaze);
-  cap.castShadow = true; cap.receiveShadow = true; scene.add(cap);
+  const cap = new THREE.Mesh(new THREE.LatheGeometry(capProfile, 72), M.glaze);
+  scene.add(cap);
   const capY = r => T + 0.036 - 0.006 * Math.pow(Math.min(1, r / 0.9), 2);
   // drips
   const DR = 1.021, DTOP = T - 0.024;
-  const dripG = new THREE.CylinderGeometry(DR, DR, 1, 180, 30, true);
+  const dripG = new THREE.CylinderGeometry(DR, DR, 1, 120, 12, true);
   const bumps = Array.from({ length: 13 }, (_, i) => ({ a: (i + Math.random() * 0.6) / 13 * Math.PI * 2, w: 0.08 + Math.random() * 0.08, len: 0.06 + Math.random() * 0.3 }));
   const dripLen = a => {
     let L = 0.05;
@@ -1508,46 +1534,78 @@ function create3D(THREE, A) {
       p.setXYZ(i, Math.sin(a) * r, DTOP - s * L, Math.cos(a) * r);
     }
     dripG.computeVertexNormals(); }
-  const drips = new THREE.Mesh(dripG, M.glaze); drips.castShadow = true; drips.receiveShadow = true; scene.add(drips);
+  scene.add(new THREE.Mesh(dripG, M.glaze));
   const m4 = new THREE.Matrix4(), q4 = new THREE.Quaternion(), e4 = new THREE.Euler(), v4 = new THREE.Vector3(), s4 = new THREE.Vector3(1, 1, 1);
-  const pearls = new THREE.InstancedMesh(new THREE.SphereGeometry(0.038, 16, 12), M.pearl, 64);
+  const pearls = new THREE.InstancedMesh(new THREE.SphereGeometry(0.038, 10, 8), M.pearl, 64);
   for (let i = 0; i < 64; i++) { const a = i / 64 * Math.PI * 2; pearls.setMatrixAt(i, m4.makeTranslation(Math.sin(a) * (R + 0.006), Y0 + 0.036, Math.cos(a) * (R + 0.006))); }
-  pearls.castShadow = true; pearls.receiveShadow = true; scene.add(pearls);
+  scene.add(pearls);
   const pastel = ['#ffd166', '#9fe7ff', '#c7a6ff', '#a6f0c6', '#ff9fc0'];
-  const dots = new THREE.InstancedMesh(new THREE.SphereGeometry(0.017, 10, 8), M.dot, 40);
+  const dots = new THREE.InstancedMesh(new THREE.SphereGeometry(0.017, 8, 6), M.dot, 40);
   for (let i = 0; i < 40; i++) {
     const a = rand(0, Math.PI * 2), y = rand(Y0 + 0.12, T - 0.32);
     dots.setMatrixAt(i, m4.makeTranslation(Math.sin(a) * (R + 0.004), y, Math.cos(a) * (R + 0.004)));
     dots.setColorAt(i, new THREE.Color(pastel[i % pastel.length]));
   }
-  dots.receiveShadow = true; scene.add(dots);
+  scene.add(dots);
   const sprinkleCols = ['#ff5d8f', '#ffd23f', '#3bceac', '#5e9cff', '#ffffff', '#c77dff'];
-  const sprinkles = new THREE.InstancedMesh(new THREE.CapsuleGeometry(0.0085, 0.034, 3, 6), M.sprinkle, 110);
+  const sprinkles = new THREE.InstancedMesh(new THREE.CapsuleGeometry(0.0085, 0.034, 2, 5), M.sprinkle, 110);
   for (let i = 0; i < 110; i++) {
     const r = Math.sqrt(Math.random()) * 0.9, a = rand(0, Math.PI * 2);
     q4.setFromEuler(e4.set(Math.PI / 2, rand(0, Math.PI * 2), 0, 'YXZ'));
     sprinkles.setMatrixAt(i, m4.compose(v4.set(Math.sin(a) * r, capY(r) + 0.006, Math.cos(a) * r), q4, s4));
     sprinkles.setColorAt(i, new THREE.Color(sprinkleCols[i % sprinkleCols.length]));
   }
-  sprinkles.receiveShadow = true; scene.add(sprinkles);
-  // bokeh fairy lights far behind
-  const bokeh3 = [];
-  for (let i = 0; i < 34; i++) {
-    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: bokehTex, color: new THREE.Color(Math.random() < 0.7 ? 0xffb070 : 0xff7fa8),
-      blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, fog: false }));
-    sp.position.set(rand(-9, 9), rand(0.6, 4.2), rand(-16, -10)); sp.scale.setScalar(rand(0.25, 0.75));
-    sp.userData.base = rand(0.06, 0.2); sp.userData.ph = rand(0, 6);
-    scene.add(sp); bokeh3.push(sp);
-  }
+  scene.add(sprinkles);
 
-  // ---------- lights ----------
+  // ---------- lights: one point light at the flames + soft room fill ----------
   const hemi = new THREE.HemisphereLight(0x75627e, 0x2a1810, 0.45); scene.add(hemi);
   const bounce = new THREE.DirectionalLight(0xffe4d2, 0.6); bounce.position.set(1.5, 2.2, 6); scene.add(bounce);   // warm light bouncing off the room / people
   const rim = new THREE.DirectionalLight(0x8494ff, 0.35); rim.position.set(-3, 4, -6); scene.add(rim);
-  const main = new THREE.PointLight(0xffa24c, 0, 0, 2);
-  main.castShadow = true; main.shadow.mapSize.set(512, 512); main.shadow.bias = -0.002; main.shadow.normalBias = 0.015;
-  main.shadow.camera.near = 0.02; main.shadow.camera.far = 30; scene.add(main);
-  const fills = [0, 1, 2].map(() => { const l = new THREE.PointLight(0xff9a40, 0, 0, 2); scene.add(l); return l; });
+  const flameLight = new THREE.PointLight(0xffa24c, 0, 0, 2); scene.add(flameLight);
+  // warm haze around the flames (the atmosphere bloom used to give)
+  const haze = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: 0xff8a3a, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0 }));
+  haze.renderOrder = 12; scene.add(haze);
+
+  // ---------- point sprites: bokeh, smoke, sparks (one draw call each) ----------
+  function makePoints(max, color, blending, frag) {
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(max * 3), 3));
+    geo.setAttribute('aSize', new THREE.BufferAttribute(new Float32Array(max), 1));
+    geo.setAttribute('aAlpha', new THREE.BufferAttribute(new Float32Array(max), 1));
+    geo.setAttribute('aColor', new THREE.BufferAttribute(new Float32Array(max * 3).fill(1), 3));
+    const mat = new THREE.ShaderMaterial({
+      uniforms: { uScale: { value: 500 }, uColor: { value: new THREE.Color(color) } },
+      vertexShader: `attribute float aSize, aAlpha; attribute vec3 aColor; uniform float uScale; varying float vA; varying vec3 vC;
+        void main() { vec4 mv = modelViewMatrix * vec4(position, 1.0); gl_PointSize = aSize * uScale / -mv.z; vA = aAlpha; vC = aColor; gl_Position = projectionMatrix * mv; }`,
+      fragmentShader: `uniform vec3 uColor; varying float vA; varying vec3 vC;
+        void main() { float r = length(gl_PointCoord - 0.5) * 2.0; ${frag} gl_FragColor = vec4(uColor * vC, a * vA); }`,
+      transparent: true, depthWrite: false, blending });
+    const pts = new THREE.Points(geo, mat); pts.frustumCulled = false; pts.renderOrder = 20; scene.add(pts);
+    return { geo, mat, list: [], max };
+  }
+  const smoke3 = makePoints(400, 0xb8b4c0, THREE.NormalBlending, 'float a = smoothstep(1.0, 0.0, r); a *= a;');
+  const spark3 = makePoints(200, 0xffc070, THREE.AdditiveBlending, 'float a = smoothstep(1.0, 0.0, r);');
+  const bokeh3 = makePoints(34, 0xffffff, THREE.AdditiveBlending, 'float a = (0.6 + 0.4 * smoothstep(0.6, 0.95, r)) * (1.0 - smoothstep(0.95, 1.0, r));');
+  bokeh3.mat.fog = false;
+  for (let i = 0; i < 34; i++) bokeh3.list.push({ x: rand(-9, 9), y: rand(0.6, 4.2), z: rand(-16, -10), s: rand(0.25, 0.75),
+    base: rand(0.06, 0.2), ph: rand(0, 6), col: Math.random() < 0.7 ? [1, 0.69, 0.44] : [1, 0.5, 0.66] });
+  function flushPoints(P, fn) {
+    const pos = P.geo.attributes.position.array, sz = P.geo.attributes.aSize.array, al = P.geo.attributes.aAlpha.array, co = P.geo.attributes.aColor.array;
+    const n = Math.min(P.max, P.list.length);
+    for (let i = 0; i < n; i++) {
+      const p = P.list[i]; pos[i * 3] = p.x; pos[i * 3 + 1] = p.y; pos[i * 3 + 2] = p.z;
+      const [s, a, c] = fn(p); sz[i] = s; al[i] = a; if (c) { co[i * 3] = c[0]; co[i * 3 + 1] = c[1]; co[i * 3 + 2] = c[2]; }
+    }
+    P.geo.setDrawRange(0, n);
+    const at = P.geo.attributes; at.position.needsUpdate = at.aSize.needsUpdate = at.aAlpha.needsUpdate = at.aColor.needsUpdate = true;
+  }
+  function emitSmoke(tip, burst, bias) {
+    if (smoke3.list.length >= smoke3.max) return;
+    smoke3.list.push({ x: tip.x + rand(-0.004, 0.004), y: tip.y + rand(0, 0.01), z: tip.z + rand(-0.004, 0.004),
+      vx: rand(-0.03, 0.03) + (burst ? rand(-0.08, 0.08) * (0.5 + st.wind) : 0) + bias * 0.05, vz: rand(-0.03, 0.03),
+      vy: burst ? rand(0.12, 0.3) : rand(0.1, 0.17), s: burst ? rand(0.025, 0.05) : rand(0.015, 0.03), g: rand(0.05, 0.1),
+      life: 0, max: burst ? rand(1.4, 2.4) : rand(2, 3.2), seed: rand(0, 9), a: burst ? 0.42 : 0.3 });
+  }
 
   // ---------- flames ----------
   const FV = `
@@ -1560,67 +1618,36 @@ function create3D(THREE, A) {
       gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
     }`;
   const FF = `
+    precision mediump float;
     uniform float uTime, uSeed, uWind, uAlpha;
     varying vec2 vUv;
     float hash(float n) { return fract(sin(n) * 43758.5453); }
     float noise(float x) { float i = floor(x), f = fract(x); return mix(hash(i), hash(i + 1.0), f * f * (3.0 - 2.0 * f)); }
-    float noise2(vec2 p) {
-      vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f); float n = i.x + i.y * 57.0;
-      return mix(mix(hash(n), hash(n + 1.0), f.x), mix(hash(n + 57.0), hash(n + 58.0), f.x), f.y);
-    }
     void main() {
       float y = vUv.y, x = vUv.x * 2.0 - 1.0, t = uTime;
       float sway = (noise(t * 3.1 + uSeed) - 0.5) * 0.3 * (1.0 + uWind * 1.5)
-                 + (noise2(vec2(y * 4.0 - t * 6.5, uSeed)) - 0.5) * 0.28 * (1.0 + uWind);
+                 + (noise(y * 4.0 - t * 6.5 + uSeed * 7.0) - 0.5) * 0.28 * (1.0 + uWind);
       x -= sway * pow(y, 1.3);
       float w = 0.56 * pow(clamp(y / 0.24, 0.0, 1.0), 0.55) * pow(clamp((1.0 - y) / 0.76, 0.0, 1.0), 0.9);
       float d = abs(x) / max(w, 1e-3);
       float a = 1.0 - smoothstep(0.5, 1.0, d);
       a *= smoothstep(1.0, 0.6 + 0.12 * noise(t * 8.0 + uSeed * 3.0), y);
       float core = (1.0 - smoothstep(0.0, 0.6, d)) * smoothstep(0.06, 0.24, y) * (1.0 - smoothstep(0.42, 0.78, y));
-      vec3 col = mix(vec3(1.0, 0.32, 0.05), vec3(1.0, 0.68, 0.26), smoothstep(0.1, 0.65, 1.0 - d));
-      col = mix(col, vec3(1.0, 0.94, 0.78), core);
-      col *= 1.25 + 1.7 * core;
+      vec3 col = mix(vec3(1.0, 0.42, 0.08), vec3(1.0, 0.74, 0.32), smoothstep(0.1, 0.65, 1.0 - d));
+      col = mix(col, vec3(1.0, 0.97, 0.88), core);
       float blue = (1.0 - smoothstep(0.0, 0.17, y)) * (1.0 - smoothstep(0.25, 1.0, d));
-      col = mix(col, vec3(0.22, 0.42, 1.0) * 1.3, blue * 0.85);
+      col = mix(col, vec3(0.3, 0.5, 1.0), blue * 0.85);
       a *= mix(1.0, 0.6, blue);
       gl_FragColor = vec4(col, a * uAlpha);
     }`;
-  const flameGeo = new THREE.PlaneGeometry(1, 1, 1, 10); flameGeo.translate(0, 0.5, 0);
+  const flameGeo = new THREE.PlaneGeometry(1, 1, 1, 8); flameGeo.translate(0, 0.5, 0);
 
-  // ---------- smoke + sparks (point sprites) ----------
-  const PMAX = 500;
-  function makePoints(color, blending, soft) {
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(PMAX * 3), 3));
-    geo.setAttribute('aSize', new THREE.BufferAttribute(new Float32Array(PMAX), 1));
-    geo.setAttribute('aAlpha', new THREE.BufferAttribute(new Float32Array(PMAX), 1));
-    const mat = new THREE.ShaderMaterial({
-      uniforms: { uScale: { value: 500 }, uColor: { value: new THREE.Color(color) } },
-      vertexShader: `attribute float aSize, aAlpha; uniform float uScale; varying float vA;
-        void main() { vec4 mv = modelViewMatrix * vec4(position, 1.0); gl_PointSize = aSize * uScale / -mv.z; vA = aAlpha; gl_Position = projectionMatrix * mv; }`,
-      fragmentShader: `uniform vec3 uColor; varying float vA;
-        void main() { float r = length(gl_PointCoord - 0.5) * 2.0; float a = smoothstep(1.0, 0.0, r); a *= ${soft ? 'a' : '1.0'}; gl_FragColor = vec4(uColor, a * vA); }`,
-      transparent: true, depthWrite: false, blending });
-    const pts = new THREE.Points(geo, mat); pts.frustumCulled = false; pts.renderOrder = 20; scene.add(pts);
-    return { geo, mat, list: [] };
-  }
-  const smoke3 = makePoints(0xb8b4c0, THREE.NormalBlending, true);
-  const spark3 = makePoints(0xffc070, THREE.AdditiveBlending, false);
-  function flushPoints(P, fn) {
-    const pos = P.geo.attributes.position.array, sz = P.geo.attributes.aSize.array, al = P.geo.attributes.aAlpha.array;
-    const n = Math.min(PMAX, P.list.length);
-    for (let i = 0; i < n; i++) { const p = P.list[i]; pos[i * 3] = p.x; pos[i * 3 + 1] = p.y; pos[i * 3 + 2] = p.z; const [s, a] = fn(p); sz[i] = s; al[i] = a; }
-    P.geo.setDrawRange(0, n);
-    P.geo.attributes.position.needsUpdate = P.geo.attributes.aSize.needsUpdate = P.geo.attributes.aAlpha.needsUpdate = true;
-  }
-  function emitSmoke(tip, burst, bias) {
-    if (smoke3.list.length >= PMAX) return;
-    smoke3.list.push({ x: tip.x + rand(-0.004, 0.004), y: tip.y + rand(0, 0.01), z: tip.z + rand(-0.004, 0.004),
-      vx: rand(-0.03, 0.03) + (burst ? rand(-0.08, 0.08) * (0.5 + st.wind) : 0) + bias * 0.05, vz: rand(-0.03, 0.03),
-      vy: burst ? rand(0.12, 0.3) : rand(0.1, 0.17), s: burst ? rand(0.025, 0.05) : rand(0.015, 0.03), g: rand(0.05, 0.1),
-      life: 0, max: burst ? rand(1.4, 2.4) : rand(2, 3.2), seed: rand(0, 9), a: burst ? 0.42 : 0.3 });
-  }
+  // ---------- candle shadows on the cake: one instanced decal per candle, aimed away from the light ----------
+  const MAXC = 48;
+  const shGeo = new THREE.PlaneGeometry(1, 1); shGeo.rotateX(-Math.PI / 2); shGeo.translate(0.5, 0, 0);
+  const shMat = new THREE.MeshBasicMaterial({ map: shadowTex, color: 0x2a0d18, transparent: true, depthWrite: false, opacity: 0,
+    polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+  const shadows = new THREE.InstancedMesh(shGeo, shMat, MAXC); shadows.count = 0; shadows.renderOrder = 2; scene.add(shadows);
 
   // ---------- candles ----------
   const group = new THREE.Group(); scene.add(group);
@@ -1631,23 +1658,15 @@ function create3D(THREE, A) {
       const tr = traceDigit(ch);
       const shapes = tr.outers.map(o => {
         const sh = new THREE.Shape(o.p.map(([x, y]) => V2(x, y)));
-        for (const hl of tr.holes) if (inPoly(hl.p[0], o.p)) sh.holes.push(new THREE.Path(hl.p.map(([x, y]) => V2(x, y))));
+        for (const hl of tr.holes) if (tr.inside(hl.p[0], o.p)) sh.holes.push(new THREE.Path(hl.p.map(([x, y]) => V2(x, y))));
         return sh;
       });
       const depth = 0.2;
-      const geo = new THREE.ExtrudeGeometry(shapes, { depth, bevelEnabled: true, bevelThickness: 0.035, bevelSize: 0.028, bevelSegments: 3, curveSegments: 4 });
+      const geo = new THREE.ExtrudeGeometry(shapes, { depth, bevelEnabled: true, bevelThickness: 0.035, bevelSize: 0.028, bevelSegments: 2, curveSegments: 2 });
       geo.translate(0, 0, -depth / 2);
-      digitGeos.set(ch, { geo, top: tr.top + 0.028, wickX: tr.wickX });
+      digitGeos.set(ch, { geo, top: tr.top + 0.028, wickX: tr.wickX, width: tr.width + 0.056 });
     }
     return digitGeos.get(ch);
-  }
-  function inPoly(pt, poly) {
-    let c = false;
-    for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
-      const [xi, yi] = poly[i], [xj, yj] = poly[j];
-      if ((yi > pt[1]) !== (yj > pt[1]) && pt[0] < (xj - xi) * (pt[1] - yi) / (yj - yi) + xi) c = !c;
-    }
-    return c;
   }
   let C3 = [], builtVer = -1, hits = [];
   function buildCandles3D() {
@@ -1660,48 +1679,46 @@ function create3D(THREE, A) {
       sub.position.set(u * R * spread, capY(Math.hypot(u, v) * R) - 0.004, v * R * 0.97);
       group.add(sub);
       const own = [];      // things to dispose
-      let topY, wx = 0, fh, mats;
+      let topY, wx = 0, fh, mats, shW;
       if (c.type === 'stick') {
         const r = clamp(c.w / G.cw * R * 0.72, 0.022, 0.075), h = clamp(c.h / G.cw * 2 * R * 0.95, 0.28, 0.72);
         const tex = stripeTex(c.color); tex.repeat.set(1, 0.25 * h / (1.15 * 2 * Math.PI * r));
-        const side = new THREE.MeshPhysicalMaterial({ map: tex, roughness: 0.4, sheen: 0.35, sheenColor: new THREE.Color(0xffffff),
-          emissive: new THREE.Color(0xff8a3d), emissiveMap: sssTex, emissiveIntensity: 0 });
+        const side = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.4, emissive: new THREE.Color(0xff8a3d), emissiveMap: sssTex, emissiveIntensity: 0 });
         const topM = new THREE.MeshStandardMaterial({ color: new THREE.Color(c.color).lerp(new THREE.Color(0xffffff), 0.45), roughness: 0.3,
           emissive: new THREE.Color(0xff8a3d), emissiveIntensity: 0 });
-        const geo = new THREE.CylinderGeometry(r, r, h, 28, 1);
-        const mesh = new THREE.Mesh(geo, [side, topM, topM]); mesh.position.y = h / 2;
-        mesh.castShadow = true; mesh.receiveShadow = true; sub.add(mesh);
+        const geo = new THREE.CylinderGeometry(r, r, h, 16, 1);
+        geo.groups = geo.groups.filter(gr => gr.materialIndex !== 2);   // the bottom cap is buried in the cake
+        const mesh = new THREE.Mesh(geo, [side, topM]); mesh.position.y = h / 2; sub.add(mesh);
         own.push(geo, side, topM, tex);
-        topY = h; fh = clamp(0.15 + r * 2.2, 0.17, 0.3); mats = [side, topM];
+        topY = h; fh = clamp(0.15 + r * 2.2, 0.17, 0.3); mats = [side, topM]; shW = r * 2.6;
       } else {
         const dh = clamp(c.dh / G.cw * 2 * R * 0.92, 0.25, 1.0);
         const dg = digitGeo(c.ch);
         const tex = stripeTex(c.color); tex.repeat.set(2.6, 2.6);
-        const mat = new THREE.MeshPhysicalMaterial({ map: tex, roughness: 0.36, sheen: 0.5, sheenColor: new THREE.Color(0xffffff),
-          clearcoat: 0.35, clearcoatRoughness: 0.3, emissive: new THREE.Color(0xff8a3d), emissiveMap: sssTex, emissiveIntensity: 0 });
-        const mesh = new THREE.Mesh(dg.geo, mat); mesh.scale.setScalar(dh);
-        mesh.castShadow = true; mesh.receiveShadow = true; sub.add(mesh);
+        const mat = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.36, emissive: new THREE.Color(0xff8a3d), emissiveMap: sssTex, emissiveIntensity: 0 });
+        const mesh = new THREE.Mesh(dg.geo, mat); mesh.scale.setScalar(dh); sub.add(mesh);
         own.push(mat, tex);
-        topY = dg.top * dh; wx = dg.wickX * dh; fh = clamp(dh * 0.26, 0.17, 0.32); mats = [mat];
+        topY = dg.top * dh; wx = dg.wickX * dh; fh = clamp(dh * 0.26, 0.17, 0.32); mats = [mat]; shW = dg.width * dh * 0.9;
       }
       const wickH = Math.max(0.045, fh * 0.28);
-      const wg = new THREE.CylinderGeometry(0.0055, 0.0075, wickH, 6); own.push(wg);
-      const wick = new THREE.Mesh(wg, M.wick); wick.position.set(wx, topY + wickH / 2 - 0.006, 0); wick.rotation.z = 0.14; wick.castShadow = true; sub.add(wick);
+      const wg = new THREE.CylinderGeometry(0.0055, 0.0075, wickH, 5, 1, true); own.push(wg);
+      const wick = new THREE.Mesh(wg, M.wick); wick.position.set(wx, topY + wickH / 2 - 0.006, 0); wick.rotation.z = 0.14; sub.add(wick);
       const tip = new THREE.Vector3(wx - Math.sin(0.14) * wickH * 0.5, topY + wickH - 0.008, 0);
       const fm = new THREE.ShaderMaterial({ uniforms: { uTime: { value: 0 }, uSeed: { value: c.phase }, uWind: { value: 0 }, uAlpha: { value: 1 }, uLean: { value: 0 } },
         vertexShader: FV, fragmentShader: FF, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide });
       const flame = new THREE.Mesh(flameGeo, fm); flame.position.copy(tip).add(new THREE.Vector3(0, -fh * 0.13, 0)); flame.renderOrder = 10; sub.add(flame);
-      const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: radialTex, color: 0xff9440, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0 }));
+      const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: 0xff9a48, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0 }));
       halo.position.copy(tip).add(new THREE.Vector3(0, fh * 0.32, 0)); halo.renderOrder = 11; sub.add(halo);
-      const ember = new THREE.Sprite(new THREE.SpriteMaterial({ map: radialTex, color: 0xff4a10, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0 }));
-      ember.position.copy(tip); ember.scale.setScalar(0.05); sub.add(ember);
+      const ember = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: 0xff4a10, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0 }));
+      ember.position.copy(tip); ember.visible = false; sub.add(ember);
       own.push(fm, halo.material, ember.material);
-      const hg = new THREE.CylinderGeometry(Math.max(0.1, c.type === 'digit' ? 0.2 : 0.08), 0.06, topY + fh * 1.4, 8); own.push(hg);
+      const hg = new THREE.CylinderGeometry(Math.max(0.1, c.type === 'digit' ? 0.2 : 0.08), 0.06, topY + fh * 1.4, 6); own.push(hg);
       const hit = new THREE.Mesh(hg, hitMat); hit.position.set(wx * 0.5, (topY + fh * 1.4) / 2, 0); hit.visible = false; hit.userData.c = c; sub.add(hit); hits.push(hit);
       sub.updateMatrixWorld(true);
-      C3.push({ c, sub, flame, fm, halo, ember, mats, fh, tipW: sub.localToWorld(tip.clone()), prevLit: c.lit,
+      C3.push({ c, sub, flame, fm, halo, ember, mats, fh, topY, shW, tipW: sub.localToWorld(tip.clone()), prevLit: c.lit,
         dispose() { own.forEach(o => o.dispose()); } });
     }
+    shadows.count = Math.min(MAXC, C3.length);
     builtVer = layoutVer;
   }
 
@@ -1721,38 +1738,39 @@ function create3D(THREE, A) {
     camera.updateProjectionMatrix();
   }
 
-  // ---------- quality ----------
+  // ---------- resolution: fixed by ?q= for tests, otherwise adapts to keep ~60 fps ----------
   const DPR0 = window.devicePixelRatio || 1;
   let forcedQ = null; try { const qq = new URLSearchParams(location.search).get('q'); if (qq != null) forcedQ = clamp(+qq, 0, 2); } catch (e) {}
-  let q = forcedQ ?? 0, pr = 1, perfT = 0, perfSum = 0, perfN = 0, frameNo = 0;
-  function applyQuality() {
-    pr = [Math.min(DPR0, 1.75), Math.min(DPR0, 1.3), 1][q];
-    const ms = [1024, 512, 256][q];
-    if (main.shadow.mapSize.x !== ms) { main.shadow.mapSize.set(ms, ms); if (main.shadow.map) { main.shadow.map.dispose(); main.shadow.map = null; } }
-    resize3();
-  }
+  let maxPr = forcedQ != null ? [Math.min(DPR0, 1.5), 1, 0.75][forcedQ] : Math.min(DPR0, 1.5);
+  let pr = maxPr, ftAvg = 16.7, slowT = 0, fastT = 0;
   function resize3() {
     renderer.setPixelRatio(pr); renderer.setSize(W, H, false);
-    composer.setPixelRatio(pr); composer.setSize(W, H);
     const s = H * pr / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)));
-    smoke3.mat.uniforms.uScale.value = s; spark3.mat.uniforms.uScale.value = s;
+    smoke3.mat.uniforms.uScale.value = s; spark3.mat.uniforms.uScale.value = s; bokeh3.mat.uniforms.uScale.value = s;
+  }
+  function adaptResolution(dt) {
+    if (forcedQ != null) return;
+    ftAvg += (dt * 1000 - ftAvg) * 0.1;
+    if (ftAvg > 21) { slowT += dt; fastT = 0; } else if (ftAvg < 17.5) { fastT += dt; slowT = 0; } else { slowT = fastT = 0; }
+    if (slowT > 0.8 && pr > 0.6) { pr = Math.max(0.6, pr * 0.85); slowT = 0; resize3(); }
+    else if (fastT > 4 && pr < maxPr) { pr = Math.min(maxPr, pr * 1.1); fastT = 0; resize3(); }
   }
 
   // ---------- per frame ----------
-  const tmp = new THREE.Vector3();
+  const tmp = new THREE.Vector3(), lightPos = new THREE.Vector3();
   function render3(dt) {
-    t3 += dt; frameNo++;
+    t3 += dt;
+    adaptResolution(dt);
     if (builtVer !== layoutVer) buildCandles3D();
     placeCamera();
     const wind = st.wind;
     let tot = 0, px = 0, py = 0, pz = 0;
-    const strengths = [];
     for (const b of C3) {
       const c = b.c;
       const e = c.ign < 1 ? 1 - Math.pow(1 - c.ign, 3) : 1;
       const s = c.lit ? e * (0.45 + 0.55 * c.hp) : 0;
       const flick = 0.8 + 0.2 * noise(t3 * 9 + c.phase * 2.1);
-      b.flame.visible = s > 0.02;
+      b.flame.visible = b.halo.visible = s > 0.02;
       if (b.flame.visible) {
         const n1 = noise(t3 * 7 + c.phase), n2 = noise(t3 * 11.3 + c.phase * 1.7);
         const gust = Math.sin(t3 * 2.1 + c.phase) * 0.5 + (noise(t3 * 3 + c.phase) - 0.5) * 1.4 + c.bias;
@@ -1761,36 +1779,43 @@ function create3D(THREE, A) {
         const hs = s * (1 + (n2 - 0.5) * 0.12 * (1 + wind * 2) + Math.min(wind, 0.8) * 0.15 - Math.max(0, wind - 0.8) * 0.35);
         b.flame.scale.set(b.fh * 0.46 * s * (1 - Math.min(wind, 1.2) * 0.15), b.fh * hs, 1);
         b.flame.rotation.y = Math.atan2(camera.position.x - b.tipW.x, camera.position.z - b.tipW.z);
+        b.halo.material.opacity = s * 0.55 * flick;
+        b.halo.scale.setScalar(b.fh * (4.2 + 0.8 * flick));
       }
-      b.halo.material.opacity = s * 0.3 * flick;
-      b.halo.scale.setScalar(b.fh * (2.4 + 0.5 * flick));
-      b.ember.material.opacity = c.ember * 0.95; b.ember.scale.setScalar(0.03 + 0.035 * c.ember);
+      b.ember.visible = c.ember > 0.01;
+      if (b.ember.visible) { b.ember.material.opacity = c.ember * 0.95; b.ember.scale.setScalar(0.04 + 0.05 * c.ember); }
       for (const m of b.mats) m.emissiveIntensity = s * 1.1 * flick;
-      // smoke / sparks on state changes
       if (b.prevLit && !c.lit && c.ember > 0.5) for (let i = 0; i < 16; i++) emitSmoke(b.tipW, true, c.bias);
       if (!b.prevLit && c.lit) for (let i = 0; i < 12; i++) spark3.list.push({ x: b.tipW.x, y: b.tipW.y, z: b.tipW.z, vx: rand(-0.4, 0.4), vy: rand(0.2, 0.9), vz: rand(-0.4, 0.4), life: 0, max: rand(0.25, 0.6) });
       b.prevLit = c.lit;
       if (c.smokeT > 0 && Math.random() < dt * 20 * (c.smokeT / 2.4)) emitSmoke(b.tipW, false, c.bias);
       const k = s * flick;
-      strengths.push(k);
       tot += k; px += b.tipW.x * k; py += (b.tipW.y + b.fh * 0.35) * k; pz += b.tipW.z * k;
     }
-    // lights follow the flames
-    const LI = 1.15;
-    if (tot > 0.001) { main.position.set(px / tot, py / tot, pz / tot); main.intensity = LI * Math.pow(tot, 0.6) * 0.6; }
-    else main.intensity = 0;
-    const order = C3.map((b, i) => i).sort((i, j) => C3[i].tipW.x - C3[j].tipW.x);
-    const per = Math.max(1, Math.ceil(order.length / fills.length));
-    fills.forEach((l, gi) => {
-      let s = 0, x = 0, y = 0, z = 0;
-      for (const i of order.slice(gi * per, gi * per + per)) { const k = strengths[i], b = C3[i]; s += k; x += b.tipW.x * k; y += (b.tipW.y + b.fh * 0.35) * k; z += b.tipW.z * k; }
-      if (s > 0.001) { l.position.set(x / s, y / s, z / s); l.intensity = LI * Math.pow(s, 0.6) * 0.4; } else l.intensity = 0;
-    });
+    // the flames' combined light, and each candle's shadow cast away from it
+    if (tot > 0.001) { lightPos.set(px / tot, py / tot, pz / tot); flameLight.position.copy(lightPos); flameLight.intensity = 1.15 * Math.pow(tot, 0.6); }
+    else flameLight.intensity = 0;
+    shMat.opacity = clamp(flameLight.intensity / 1.6, 0, 1) * 0.8;
+    haze.visible = tot > 0.001;
+    if (haze.visible) { haze.position.copy(lightPos); haze.scale.setScalar(2.2 + 0.25 * Math.sqrt(tot)); haze.material.opacity = Math.min(0.32, 0.1 * Math.sqrt(tot)); }
+    for (let i = 0; i < shadows.count; i++) {
+      const b = C3[i], bx = b.sub.position.x, bz = b.sub.position.z;
+      let dx = bx - lightPos.x, dz = bz - lightPos.z; const d = Math.hypot(dx, dz) || 1e-4; dx /= d; dz /= d;
+      const above = Math.max(0.05, lightPos.y - b.sub.position.y - b.topY * 0.92);
+      let L = clamp(b.topY * (d + b.shW * 0.4) / above, b.shW * 0.6, 1.4);
+      // keep the decal on the cake top
+      const pb = bx * dx + bz * dz, edge = -pb + Math.sqrt(Math.max(0, pb * pb - (bx * bx + bz * bz - 0.97 * 0.97)));
+      L = Math.min(L, Math.max(0.02, edge));
+      q4.setFromAxisAngle(v4.set(0, 1, 0), Math.atan2(-dz, dx));
+      shadows.setMatrixAt(i, m4.compose(tmp.set(bx, b.sub.position.y + 0.004, bz), q4, s4.set(L, 1, b.shW)));
+    }
+    s4.set(1, 1, 1);
+    shadows.instanceMatrix.needsUpdate = true;
     const amb = st.ambient;
     const roomTarget = st.celebrated ? 0.9 : 0.4;          // room light comes up after the wish
     hemi.intensity += (roomTarget - hemi.intensity) * Math.min(1, dt * 0.8);
     bounce.intensity = 0.45 + 0.5 * amb + (st.celebrated ? 0.35 : 0);
-    for (const sp of bokeh3) sp.material.opacity = sp.userData.base * (0.35 + 0.65 * amb) * (0.8 + 0.2 * Math.sin(t3 * 0.7 + sp.userData.ph));
+    flushPoints(bokeh3, p => [p.s, p.base * (0.35 + 0.65 * amb) * (0.8 + 0.2 * Math.sin(t3 * 0.7 + p.ph)), p.col]);
     // particles
     for (let i = smoke3.list.length - 1; i >= 0; i--) {
       const p = smoke3.list[i]; p.life += dt;
@@ -1807,21 +1832,12 @@ function create3D(THREE, A) {
       p.vy -= 2.2 * dt; p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt;
     }
     flushPoints(spark3, p => [0.012, 1 - p.life / p.max]);
-    // adaptive quality: step down if the phone can't keep up
-    if (forcedQ == null && q < 2) {
-      perfT += dt;
-      if (perfT > 1.5) { perfSum += dt; perfN++; }
-      if (perfT > 4.5) {
-        if (perfSum / perfN > 0.026) { q++; applyQuality(); }
-        perfT = 0; perfSum = 0; perfN = 0;
-      }
-    }
-    renderer.shadowMap.needsUpdate = frameNo % [1, 2, 3][q] === 0 || frameNo < 3;
-    if (q < 2) composer.render(); else renderer.render(scene, camera);
+    renderer.info.reset();
+    renderer.render(scene, camera);
   }
 
   const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
-  applyQuality();
+  resize3();
   return {
     render: render3,
     resize: resize3,
@@ -1843,7 +1859,8 @@ function create3D(THREE, A) {
       tmp.copy(b.tipW); tmp.y += b.fh * 0.4; tmp.project(camera);
       return { x: (tmp.x + 1) / 2 * W, y: (1 - tmp.y) / 2 * H };
     },
-    info() { return { q, pr, lights: main.intensity.toFixed(2), calls: renderer.info.render.calls, tris: renderer.info.render.triangles }; }
+    loseContext() { const ext = renderer.getContext().getExtension('WEBGL_lose_context'); if (ext) { ext.loseContext(); setTimeout(() => ext.restoreContext(), 500); } },
+    info() { return { pr: +pr.toFixed(2), calls: renderer.info.render.calls, tris: renderer.info.render.triangles, losses }; }
   };
 }
 
