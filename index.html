@@ -64,6 +64,17 @@
     width:max-content;max-width:calc(100% - 32px);padding:10px 16px;border-radius:14px;background:rgba(26,15,34,.94);
     border:1px solid var(--line);font-size:14px;line-height:1.5;text-align:center;transition:opacity .4s;pointer-events:none}
   .toast.off{opacity:0}
+  body.prog-on .toast{bottom:calc(env(safe-area-inset-bottom) + 116px)}
+  /* blow progress: how much of the candles' flame has been blown away so far */
+  .progress{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom) + 78px);z-index:5;
+    width:min(360px,calc(100% - 32px));display:flex;align-items:center;gap:10px;padding:0 6px;pointer-events:none;
+    transition:opacity .5s}
+  .progress.off{opacity:0}
+  .progress .track{position:relative;flex:1;height:8px;border-radius:99px;background:rgba(255,255,255,.14);overflow:hidden;
+    box-shadow:0 1px 6px rgba(0,0,0,.35)}
+  .progress .bar{position:absolute;left:0;top:0;bottom:0;width:0;border-radius:99px;background:linear-gradient(90deg,#ffc36b,#ff7b8e)}
+  .progress .cnt{min-width:3.2em;text-align:right;font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums;
+    text-shadow:0 1px 6px rgba(0,0,0,.7)}
 
   .top{position:fixed;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;
     padding:calc(env(safe-area-inset-top) + 12px) 16px 0;pointer-events:none;z-index:5}
@@ -214,6 +225,10 @@
   <span class="lbl" data-t="sens">靈敏度</span>
 </button>
 
+<div id="progress" class="progress off" aria-hidden="true">
+  <span class="track"><span class="bar" id="progBar"></span></span><span class="cnt" id="progCnt"></span>
+</div>
+
 <div id="toast" class="toast off" role="status"></div>
 
 <div id="celebrate" class="celebrate hidden" aria-live="polite">
@@ -255,6 +270,16 @@
     </div>
   </div>
   <div class="field">
+    <label data-t="fx">特效</label>
+    <div class="seg small" id="fxSeg">
+      <button data-fx="low" data-t="fxLow">低</button>
+      <button data-fx="medium" data-t="fxMedium">中</button>
+      <button data-fx="high" data-t="fxHigh">高</button>
+      <button data-fx="ultra" data-t="fxUltra">極高</button>
+    </div>
+    <p class="tip" data-t="fxTip">高是預設。畫面卡頓或變模糊時調低；極高會放出超多煙火和彩花，適合效能很好的裝置。</p>
+  </div>
+  <div class="field">
     <label><span data-t="threshold">吹熄門檻</span> <b id="thVal">50</b></label>
     <div class="meter big"><span class="fill" id="bigFill"></span><span class="amb" id="bigAmb"></span><span class="mark" id="bigMark"></span></div>
     <input type="range" id="thSlider" min="5" max="95" step="1" data-t-aria="threshold" aria-label="吹熄門檻">
@@ -269,6 +294,7 @@
   </div>
   <div class="field row"><label for="sfxToggle" data-t="sfx">音效</label><input type="checkbox" id="sfxToggle" class="switch"></div>
   <div class="field row"><label for="songToggle" data-t="song">全部吹熄後播放生日快樂歌</label><input type="checkbox" id="songToggle" class="switch"></div>
+  <div class="field row"><label for="progToggle" data-t="progress">顯示吹熄進度條</label><input type="checkbox" id="progToggle" class="switch"></div>
   <div class="field" id="fInstall" hidden>
     <label data-t="installLabel">安裝 App</label>
     <button class="ghost install-btn" data-install hidden data-t="install">📲 安裝到主畫面</button>
@@ -357,6 +383,11 @@ const STR = {
     installIos: '想像 App 一樣使用？點瀏覽器的「分享」按鈕 ⬆️，再選「加入主畫面」。',
     procLabel: '麥克風音訊處理：', procSep: '・', procOff: '已關閉', procOn: '開著（瀏覽器不允許關閉）',
     proc_echoCancellation: '回音消除', proc_noiseSuppression: '降噪', proc_autoGainControl: '自動增益', proc_voiceIsolation: '人聲隔離',
+    fx: '特效', fxLow: '低', fxMedium: '中', fxHigh: '高', fxUltra: '極高',
+    fxTip: '高是預設。畫面卡頓或變模糊時調低；極高會放出超多煙火和彩花，適合效能很好的裝置。',
+    fxSlow: '這台裝置跑得有點吃力，已自動降低解析度。到 ⚙️ 設定把「特效」調低，畫面會更順、更清楚。',
+    fxSlowKeep: '這台裝置跑得有點吃力。到 ⚙️ 設定把「特效」調低，畫面會更順。',
+    progress: '顯示吹熄進度條',
   },
   en: {
     appName: 'Blow the Candles', docTitle: 'Blow Candles – Blow Out Birthday Candles Online with Your Phone', relight: '🔥 Relight', relightAria: 'Relight all candles', renderAria: 'Switch between 2D and 3D', settings: 'Settings',
@@ -389,6 +420,11 @@ const STR = {
     installIos: 'To use it like an app, tap the browser\u2019s Share button ⬆️, then Add to Home Screen.',
     procLabel: 'Microphone processing: ', procSep: ' · ', procOff: 'off', procOn: 'on (the browser keeps it on)',
     proc_echoCancellation: 'echo cancellation', proc_noiseSuppression: 'noise suppression', proc_autoGainControl: 'auto gain', proc_voiceIsolation: 'voice isolation',
+    fx: 'Effects', fxLow: 'Low', fxMedium: 'Medium', fxHigh: 'High', fxUltra: 'Ultra',
+    fxTip: 'High is the default. Turn it down if the picture stutters or turns blurry; Ultra sets off far more fireworks and confetti, for powerful devices.',
+    fxSlow: 'This device is struggling, so the resolution was lowered. Turn Effects down in ⚙️ Settings for a smoother, sharper picture.',
+    fxSlowKeep: 'This device is struggling. Turn Effects down in ⚙️ Settings for a smoother picture.',
+    progress: 'Show blow-out progress bar',
   },
 };
 const DEFAULT_MSGS = [STR.zh.defMsg, STR.en.defMsg];
@@ -429,7 +465,8 @@ function applyLang() {
 
 /* ---------------- settings ---------------- */
 const KEY = 'blow-candle-v2';
-const DEFAULTS = { defaultsVer: 4, mode: 'number', count: 5, number: '18', threshold: 60, msg: null, sfx: true, song: true, calibrated: false, render: '3d', cake: 'classic', lang: 'auto' };
+const DEFAULTS = { defaultsVer: 5, mode: 'number', count: 5, number: '18', threshold: 50, msg: null, sfx: true, song: true, calibrated: false, render: '3d', cake: 'classic', lang: 'auto',
+  fx: 'high', progress: true };
 const CAKE_FLAVOURS = ['classic', 'chocolate', 'strawberry'];
 const S = Object.assign({}, DEFAULTS);
 try {
@@ -441,6 +478,8 @@ try {
     if (!saved.defaultsVer && !saved.calibrated && saved.threshold === 40) saved.threshold = DEFAULTS.threshold;
     // v4 lowered the default from 75 to 60 so blowing out is easier; an untouched 75 follows
     if ((saved.defaultsVer || 0) < 4 && !saved.calibrated && saved.threshold === 75) saved.threshold = DEFAULTS.threshold;
+    // v5 lowered it again, from 60 to 50
+    if ((saved.defaultsVer || 0) < 5 && !saved.calibrated && saved.threshold === 60) saved.threshold = DEFAULTS.threshold;
     // until v3, "auto" followed the browser language; returning visitors keep the language they were seeing
     if ((saved.defaultsVer || 0) < 3 && !['zh', 'en'].includes(saved.lang)) saved.lang = detectLang();
     Object.assign(S, saved, { defaultsVer: DEFAULTS.defaultsVer });
@@ -461,7 +500,23 @@ try {
   if (q.has('cake')) { const v = q.get('cake'); S.cake = ['0', 'off', 'none'].includes(v) ? false : { choc: 'chocolate', straw: 'strawberry' }[v] || v; }
   if (['zh', 'en'].includes(q.get('lang'))) urlLang = q.get('lang');
   if (q.has('r')) S.render = q.get('r') === '2d' ? '2d' : '3d';
+  if (q.has('fx')) S.fx = q.get('fx');
 } catch (e) {}
+/* ---------------- effects level ----------------
+   'high' is the original look and the default. Lower levels draw fewer particles at a lower resolution so slower
+   devices (and big screens such as tablets) keep up; 'ultra' piles on more of everything for strong devices.
+   pr3: top resolution of the 3D view; dpr2: top resolution of the 2D canvas (the whole scene in 2D, the sky and
+   fireworks behind the cake in 3D); conf/foil/str: party popper pieces, foil pieces and streamers per popper;
+   fw: share of firework shells; stars, trail: stars per shell and trail length; glow: halos and smoke puffs;
+   fwCap: most stars alive at once; bokeh: the blurred lights in the background. */
+const FX_LEVELS = ['low', 'medium', 'high', 'ultra'];
+const FX = {
+  low:    { pr3: 1,    dpr2: 1,   conf3: 40,  foil3: 8,  str3: 0,  conf2: 36,  str2: 0,  fw: 0,   stars: 0,    trail: 0,   glow: false, fwCap: 0,    bokeh: false },
+  medium: { pr3: 1.25, dpr2: 1.5, conf3: 110, foil3: 20, str3: 4,  conf2: 90,  str2: 4,  fw: 0.6, stars: 0.55, trail: 0.6, glow: false, fwCap: 1200, bokeh: true },
+  high:   { pr3: 1.5,  dpr2: 2.5, conf3: 192, foil3: 36, str3: 8,  conf2: 144, str2: 6,  fw: 1,   stars: 1,    trail: 1,   glow: true,  fwCap: 2600, bokeh: true },
+  ultra:  { pr3: 2,    dpr2: 2.5, conf3: 400, foil3: 80, str3: 16, conf2: 320, str2: 14, fw: 2.2, stars: 1.5,  trail: 1.4, glow: true,  fwCap: 7000, bokeh: true },
+};
+const fxc = () => FX[S.fx];
 function sanitize() {
   S.mode = S.mode === 'single' ? 'single' : 'number';
   S.count = clamp(Math.round(+S.count) || 1, 1, 40);
@@ -473,6 +528,8 @@ function sanitize() {
   S.sfx = !!S.sfx; S.song = !!S.song; S.calibrated = !!S.calibrated;
   S.cake = S.cake === false ? false : CAKE_FLAVOURS.includes(S.cake) ? S.cake : 'classic';   // older saves stored true/false
   S.render = S.render === '3d' ? '3d' : '2d';
+  S.fx = FX_LEVELS.includes(S.fx) ? S.fx : DEFAULTS.fx;
+  S.progress = S.progress !== false;
 }
 sanitize();
 function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} }
@@ -773,7 +830,7 @@ function buildCandles(stagger) {
 }
 
 function resize() {
-  DPR = Math.min(window.devicePixelRatio || 1, 2.5);
+  DPR = dpr2Now();
   W = window.innerWidth; H = window.innerHeight;
   cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR); backdropClean = false;
   layout();
@@ -980,11 +1037,15 @@ const fxScale = () => Math.min(W, H) / 400;
 const pickCol = () => FW_PALETTE[Math.random() * FW_PALETTE.length | 0];
 function startFireworks() {
   FW.queue.length = 0;
+  const F = fxc();
+  if (!F.fw) return;
   let t = FW.clock + 0.4;
   const order = ['peony', 'willow', 'ring', 'crackle', 'peony2', 'peony', 'willow', 'crackle', 'ring', 'peony2'];
-  for (const type of order) { t += rand(0.45, 1.0); FW.queue.push({ at: t, type }); }
+  const n = Math.round(order.length * F.fw), gap = F.fw > 1 ? 0.6 : 1;     // ultra: more shells, closer together
+  for (let i = 0; i < n; i++) { t += rand(0.45, 1.0) * gap; FW.queue.push({ at: t, type: order[i % order.length] }); }
   t += 0.6;
-  for (let i = 0; i < 4; i++) FW.queue.push({ at: t + i * 0.2, type: i % 2 ? 'crackle' : 'peony2' });   // finale
+  const fin = Math.max(2, Math.round(4 * F.fw));
+  for (let i = 0; i < fin; i++) FW.queue.push({ at: t + i * 0.2 * Math.min(1, 4 / fin * 1.6), type: i % 2 ? 'crackle' : 'peony2' });   // finale
 }
 function stopFireworks() { FW.queue.length = 0; FW.shells.length = 0; }
 function launchShell(type) {
@@ -1003,12 +1064,13 @@ const FW_TYPES = {
   crackle: { n: 110, sp: 215, life: 1.4, drag: 1.6, g: 60, trail: 5, crackle: true },
 };
 function burstShell(s) {
-  const k = fxScale(), conf = FW_TYPES[s.type], alt = pickCol();
+  const k = fxScale(), conf = FW_TYPES[s.type], alt = pickCol(), F = fxc();
   const tilt = rand(0.25, 0.9), rot = rand(0, Math.PI);
-  for (let i = 0; i < conf.n; i++) {
+  const n = Math.round(conf.n * F.stars), tl = Math.round(conf.trail * F.trail);
+  for (let i = 0; i < n; i++) {
     let dx, dy, dz;
     if (conf.ring) {             // a tilted ring seen in perspective
-      const a = i / conf.n * Math.PI * 2, x = Math.cos(a), y = Math.sin(a) * tilt;
+      const a = i / n * Math.PI * 2, x = Math.cos(a), y = Math.sin(a) * tilt;
       dz = Math.sin(a) * Math.sqrt(1 - tilt * tilt);
       dx = x * Math.cos(rot) - y * Math.sin(rot); dy = x * Math.sin(rot) + y * Math.cos(rot);
     } else {                     // even sphere of stars
@@ -1017,10 +1079,10 @@ function burstShell(s) {
     const v = conf.sp * k * rand(0.86, 1.08);
     const c = conf.gold ? [255, rand(165, 200) | 0, 80] : conf.two && i % 2 ? alt : s.col;
     FW.parts.push({ x: s.x, y: s.y, vx: dx * v, vy: dy * v, depth: 0.55 + 0.45 * (dz + 1) / 2, life: 0, max: conf.life * rand(0.8, 1.15),
-      drag: conf.drag, g: conf.g * k, c, trail: [], tl: conf.trail, crackle: conf.crackle, gold: conf.gold, seed: rand(0, 99) });
+      drag: conf.drag, g: conf.g * k, c, trail: [], tl, crackle: conf.crackle, gold: conf.gold, seed: rand(0, 99) });
   }
   FW.flashes.push({ x: s.x, y: s.y, a: 1, c: s.col, r: 230 * k });
-  for (let i = 0; i < 5; i++) FW.puffs.push({ x: s.x + rand(-35, 35) * k, y: s.y + rand(-35, 35) * k, r: rand(30, 65) * k, life: 0, max: rand(4, 6), vx: rand(-6, 6), vy: rand(-5, 1) });
+  if (F.glow) for (let i = 0; i < 5; i++) FW.puffs.push({ x: s.x + rand(-35, 35) * k, y: s.y + rand(-35, 35) * k, r: rand(30, 65) * k, life: 0, max: rand(4, 6), vx: rand(-6, 6), vy: rand(-5, 1) });
   if (use3D()) R3.flash(s.col);
   sfxBoom(s.type, conf.life);
 }
@@ -1031,7 +1093,7 @@ function updateFireworks(dt) {
   for (let i = FW.shells.length - 1; i >= 0; i--) {
     const s = FW.shells[i]; s.t += dt;
     s.vy += s.g * dt; s.x += s.vx * dt; s.y += s.vy * dt;
-    if (Math.random() < 0.85) FW.parts.push({ x: s.x, y: s.y, vx: rand(-14, 14) * k, vy: rand(10, 40) * k, depth: 0.8, life: 0, max: rand(0.25, 0.55),
+    if (Math.random() < 0.85 * Math.min(1, fxc().stars)) FW.parts.push({ x: s.x, y: s.y, vx: rand(-14, 14) * k, vy: rand(10, 40) * k, depth: 0.8, life: 0, max: rand(0.25, 0.55),
       drag: 2, g: 80 * k, c: [255, 205, 130], trail: [], tl: 0, spark: true, seed: 0 });
     if (s.t >= s.T) { FW.shells.splice(i, 1); burstShell(s); }
   }
@@ -1047,7 +1109,8 @@ function updateFireworks(dt) {
     p.vx *= d; p.vy = p.vy * d + p.g * dt;
     p.x += p.vx * dt; p.y += p.vy * dt;
   }
-  if (FW.parts.length > 2600) FW.parts.splice(0, FW.parts.length - 2600);
+  const cap = fxc().fwCap;
+  if (FW.parts.length > cap) FW.parts.splice(0, FW.parts.length - cap);
   for (let i = FW.flashes.length - 1; i >= 0; i--) { const f = FW.flashes[i]; f.a -= dt * 4; if (f.a <= 0) FW.flashes.splice(i, 1); }
   for (let i = FW.puffs.length - 1; i >= 0; i--) {
     const p = FW.puffs[i]; p.life += dt; p.x += p.vx * dt; p.y += p.vy * dt; p.r += dt * 6 * k;
@@ -1071,6 +1134,7 @@ function drawFireworks(c2) {
     c2.fillStyle = g; c2.beginPath(); c2.arc(f.x, f.y, r, 0, 7); c2.fill();
   }
   c2.lineCap = 'round';
+  const glow = fxc().glow;
   for (const p of FW.parts) {
     const k = p.life / p.max;
     let a = (1 - k * k) * p.depth;
@@ -1083,7 +1147,7 @@ function drawFireworks(c2) {
       for (let j = 2; j < p.trail.length; j += 2) c2.lineTo(p.trail[j], p.trail[j + 1]);
       c2.lineTo(p.x, p.y); c2.stroke();
     }
-    if (!p.spark && k < 0.6) {          // soft glow around young stars
+    if (glow && !p.spark && k < 0.6) {          // soft glow around young stars
       c2.fillStyle = `rgba(${r},${gg},${bb},${a * 0.14})`;
       c2.beginPath(); c2.arc(p.x, p.y, 4.5 * p.depth, 0, 7); c2.fill();
     }
@@ -1098,10 +1162,10 @@ function drawFireworks(c2) {
 const CONF_COLS = [[255, 77, 109], [255, 210, 63], [59, 206, 172], [77, 150, 255], [199, 125, 255], [255, 140, 66], [250, 250, 250], [122, 229, 130]];
 const streamers = [];
 function popConfetti2D() {
-  const k = fxScale();
+  const k = fxScale(), F = fxc();
   for (const side of [-1, 1]) {
     const ox = side < 0 ? -4 : W + 4, oy = H - 70, base = side < 0 ? -Math.PI / 3 : -Math.PI * 2 / 3;
-    for (let i = 0; i < 144; i++) {
+    for (let i = 0; i < F.conf2; i++) {
       const a = base + rand(-0.32, 0.32), v = rand(750, 1300) * k;
       confetti.push({ x: ox, y: oy, vx: Math.cos(a) * v, vy: Math.sin(a) * v, rx: rand(0, 6), ry: rand(0, 6), rz: rand(0, 6),
         wx: rand(-14, 14), wy: rand(-10, 10), wz: rand(-5, 5), w: rand(6, 10) * k, h: rand(3.5, 6) * k, col: CONF_COLS[i % CONF_COLS.length],
@@ -1110,7 +1174,7 @@ function popConfetti2D() {
     // streamers fly up to the top third of the screen, drift down slowly (paper ribbon has lots of drag) and fall out of view;
     // speeds follow the screen height so they reach the same place on any phone, sideways reach follows the width
     const kh = H / 844, kw = Math.min(2.5, (W / 390) / kh);
-    for (let i = 0; i < 6; i++) {
+    for (let i = 0; i < F.str2; i++) {
       const a = -rand(0.98, 1.4), v = rand(1250, 1500) * kh, n = 22, seg = rand(9, 12) * k;
       const s = { x: new Float32Array(n), y: new Float32Array(n), ox: new Float32Array(n), oy: new Float32Array(n), n, seg,
         col: CONF_COLS[(i * 3 + (side > 0 ? 1 : 0)) % CONF_COLS.length], width: 7 * k, tw: rand(0, 6), spin: 0,
@@ -1292,7 +1356,7 @@ function render() {
   warm.addColorStop(0, `rgba(255,150,70,${0.48 * amb})`); warm.addColorStop(0.45, `rgba(200,80,60,${0.14 * amb})`);
   warm.addColorStop(1, 'rgba(0,0,0,0)');
   ctx.fillStyle = warm; ctx.fillRect(0, 0, W, H);
-  for (const b of bokeh) {
+  if (fxc().bokeh) for (const b of bokeh) {
     const x = b.x * W + Math.sin(t * 0.15 + b.s) * 14, y = b.y * H + Math.cos(t * 0.11 + b.s) * 10;
     const a = b.a * (0.35 + 0.65 * amb) * (0.75 + 0.25 * Math.sin(t * 0.8 + b.s * 3));
     const g = ctx.createRadialGradient(x, y, 0, x, y, b.r);
@@ -1572,6 +1636,59 @@ function renderOverlay() {
   drawFireworks(ctx);
 }
 
+/* ---------------- resolution: set by the effects level, lowered automatically to keep ~60 fps ----------------
+   res.s scales both canvases: the 3D view and the 2D canvas (in 3D mode that is the sky and fireworks behind the
+   cake, which on a tablet can cost more than the cake itself). ?q=0|1|2 fixes the 3D resolution for tests. */
+const DPR0 = window.devicePixelRatio || 1;
+let forcedQ = null; try { const qq = new URLSearchParams(location.search).get('q'); if (qq != null) forcedQ = clamp(+qq, 0, 2); } catch (e) {}
+const res = { s: 1, ft: 16.7, slowT: 0, fastT: 0, grace: 2, dropFt: 0, futile: 0, capped: false, lossK: 1, warned: '' };
+function pr3Full() {
+  const base = forcedQ != null ? [Math.min(DPR0, 1.5), 1, 0.75][forcedQ] : Math.min(DPR0, fxc().pr3);
+  return res.lossK < 1 ? Math.max(0.75, base * res.lossK) : base;     // lower after the GPU dropped the 3D view
+}
+const pr3Now = () => forcedQ != null ? pr3Full() : Math.max(0.6, pr3Full() * res.s);
+function dpr2Now() { const full = Math.min(DPR0, fxc().dpr2); return Math.max(Math.min(full, 0.75), full * res.s); }
+function applyResolution() {
+  const d = dpr2Now();
+  if (Math.abs(d - DPR) > 0.005 && W) {      // only the canvas size: everything is drawn through setTransform(DPR)
+    DPR = d; cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR); backdropClean = false;
+  }
+  if (R3) R3.setPixelRatio(pr3Now());
+}
+// back to the level's full resolution, e.g. after picking another effects level; frame times are ignored for a
+// moment so the hitch of switching doesn't count as slowness
+function resetResolution() {
+  Object.assign(res, { s: 1, ft: 16.7, slowT: 0, fastT: 0, grace: 2, dropFt: 0, futile: 0, capped: false });
+  applyResolution();
+}
+function adaptResolution(dt) {
+  if (res.grace > 0) { res.grace -= dt; return; }
+  res.ft += (dt * 1000 - res.ft) * 0.1;
+  if (res.ft > 21) { res.slowT += dt; res.fastT = 0; } else if (res.ft < 17.5) { res.fastT += dt; res.slowT = 0; } else { res.slowT = res.fastT = 0; }
+  if (res.slowT > 0.8) {
+    res.slowT = 0;
+    if (forcedQ != null || res.capped || res.s <= 0.4) { warnSlow(false); return; }
+    // a screen held at 30 fps (iPhone and iPad Low Power Mode) stays "slow" whatever the resolution: after two
+    // drops that change nothing, go back to full resolution and leave it there
+    if (res.dropFt && res.ft > res.dropFt * 0.92) {
+      if (++res.futile >= 2) { res.capped = true; res.s = 1; applyResolution(); warnSlow(false); return; }
+    } else res.futile = 0;
+    // say so from the second step down: one small step that fixes it isn't worth interrupting for, and on a
+    // 30 fps screen the second check is what tells the two cases apart
+    if (res.dropFt && !res.futile) warnSlow(true);
+    res.dropFt = res.ft; res.s = Math.max(0.4, res.s * 0.85); applyResolution();
+  } else if (res.fastT > 4 && res.s < 1 && forcedQ == null) {
+    res.fastT = 0; res.dropFt = 0; res.futile = 0; res.s = Math.min(1, res.s * 1.1); applyResolution();
+  }
+}
+// once per effects level: suggest a lighter level (only after Start, and not when already on the lightest)
+let begun = false;
+function warnSlow(lowered) {
+  if (!begun || S.fx === 'low' || res.warned === S.fx || $('sheet').classList.contains('open')) return;
+  res.warned = S.fx;
+  showToast(tr(lowered ? 'fxSlow' : 'fxSlowKeep'));
+}
+
 /* ---------------- loop ---------------- */
 let last = performance.now();
 function frame(now) {
@@ -1580,13 +1697,29 @@ function frame(now) {
   const dt = Math.min(0.05, Math.max(0, (now - last) / 1000)); last = now;
   update(dt);
   if (use3D()) { R3.render(dt); renderOverlay(); } else render();
+  adaptResolution(dt);
   updateMeters();
   requestAnimationFrame(frame);
 }
 
 /* ---------------- UI ---------------- */
 const pillFill = $('pillFill'), pillMark = $('pillMark'), bigFill = $('bigFill'), bigMark = $('bigMark');
+const progEl = $('progress'), progBar = $('progBar'), progCnt = $('progCnt');
+let progOn = null, progTxt = '';
+// blow progress: each lit candle counts by how far its flame has been knocked down, each blown-out one in full;
+// shown only when blowing (not in tap mode), and it fades away once they're all out
+function updateProgress() {
+  const n = cands.length;
+  const on = S.progress && begun && micOk && n > 0 && !st.celebrated && !cands.some(c => c.pending);
+  if (on !== progOn) { progOn = on; progEl.classList.toggle('off', !on); document.body.classList.toggle('prog-on', on); }
+  let done = 0, out = 0;
+  for (const c of cands) { if (c.lit) done += 1 - clamp(c.hp, 0, 1); else if (!c.pending) { done++; out++; } }
+  progBar.style.width = (n ? done / n * 100 : 0).toFixed(1) + '%';
+  const t = out + '/' + n;
+  if (t !== progTxt) { progTxt = t; progCnt.textContent = t; }
+}
 function updateMeters() {
+  updateProgress();
   const v = clamp(st.disp, 0, 100), hot = st.disp >= S.threshold;
   pillFill.style.width = v + '%'; bigFill.style.width = v + '%';
   pillFill.classList.toggle('hot', hot); bigFill.classList.toggle('hot', hot);
@@ -1620,6 +1753,8 @@ function syncForm() {
   document.querySelectorAll('#modeSeg button').forEach(b => b.classList.toggle('on', b.dataset.mode === S.mode));
   document.querySelectorAll('#cakeSeg button').forEach(b => b.classList.toggle('on', b.dataset.cake === (S.cake || 'off')));
   document.querySelectorAll('#langSeg button').forEach(b => b.classList.toggle('on', b.dataset.lang === LANG));
+  document.querySelectorAll('#fxSeg button').forEach(b => b.classList.toggle('on', b.dataset.fx === S.fx));
+  $('progToggle').checked = S.progress;
   $('fCount').classList.toggle('hidden-field', S.mode !== 'single');
   $('fNumber').classList.toggle('hidden-field', S.mode !== 'number');
   $('countInput').value = S.count; $('numberInput').value = S.number;
@@ -1663,6 +1798,12 @@ $('numberInput').addEventListener('input', e => {
 });
 $('numberInput').addEventListener('blur', e => { if (!e.target.value) e.target.value = S.number; });
 $('thSlider').addEventListener('input', e => { S.threshold = +e.target.value; updateMarks(); save(); });
+$('fxSeg').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b || b.dataset.fx === S.fx) return;
+  S.fx = b.dataset.fx; save(); syncForm();
+  resetResolution();      // the new level's full resolution right away, no reload needed
+});
+$('progToggle').addEventListener('change', e => { S.progress = e.target.checked; save(); });
 $('msgInput').addEventListener('input', e => { const v = e.target.value.slice(0, 24); S.msg = v === tr('defMsg') ? null : v; save(); if (!celebrateEl.classList.contains('hidden')) $('celebrateMsg').textContent = wishText() || '🎉'; });
 $('langSeg').addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b || b.dataset.lang === LANG) return;
@@ -1792,6 +1933,7 @@ function applyRenderMode() {
   backdropClean = false;
   if (R3) R3.show(!!use3D());
   updateRenderBtn();
+  resetResolution();      // 2D and 3D cost very different amounts
 }
 function setRender(r) {
   S.render = r;
@@ -1813,6 +1955,7 @@ async function keepAwake() {
   try { if ('wakeLock' in navigator && document.visibilityState === 'visible') wakeLock = await navigator.wakeLock.request('screen'); } catch (e) {}
 }
 function begin() {
+  begun = true;
   $('start').classList.add('hidden');
   setTimeout(() => { $('start').style.display = 'none'; }, 600);
   updateMicUI(); keepAwake();
@@ -1843,7 +1986,7 @@ document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') {
     if (AC && AC.state !== 'running') AC.resume().catch(() => {});
     keepAwake();
-    last = performance.now();
+    last = performance.now(); res.grace = 1;
   }
 });
 window.addEventListener('resize', resize);
@@ -1861,6 +2004,7 @@ window.candleDebug = {
   },
   calibrate: startCalib,
   render() { return { mode: use3D() ? '3d' : '2d', r3State, info: R3 ? R3.info() : null }; },
+  res() { return { s: +res.s.toFixed(3), ft: +res.ft.toFixed(1), capped: res.capped, dpr2: +DPR.toFixed(3), canvas: cv.width, pr3: R3 ? R3.info().pr : null, fx: S.fx, toast: $('toast').classList.contains('off') ? null : $('toast').textContent }; },
   project3D(i) { return R3 ? R3.project(i) : null; },
   loseContext3D() { if (R3) R3.loseContext(); },
   advance(sec) { for (let t = 0; t < sec; t += 1 / 60) { update(1 / 60); if (use3D()) R3.stepFx(1 / 60); } },
@@ -1993,7 +2137,7 @@ function create3D(THREE) {
   });
   canvas3.addEventListener('webglcontextrestored', () => {
     if (r3State === 'failed') return;
-    maxPr = Math.max(0.75, maxPr * 0.75); pr = Math.min(pr, maxPr); resize3();
+    res.lossK *= 0.75;
     r3State = 'ready'; applyRenderMode();
     $('toast').classList.add('off');
   });
@@ -2313,12 +2457,13 @@ function create3D(THREE) {
   const confMat = new THREE.MeshStandardMaterial({ roughness: 0.55, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 });
   const foilMat = new THREE.MeshStandardMaterial({ roughness: 0.2, metalness: 0.9, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 });
   const confGeo = new THREE.PlaneGeometry(1, 1);
-  const paper = new THREE.InstancedMesh(confGeo, confMat, 312), foil = new THREE.InstancedMesh(confGeo, foilMat, 72);
+  const FXU = FX.ultra;     // buffers sized for the biggest effects level
+  const paper = new THREE.InstancedMesh(confGeo, confMat, 2 * (FXU.conf3 - FXU.foil3)), foil = new THREE.InstancedMesh(confGeo, foilMat, 2 * FXU.foil3);
   for (const im of [paper, foil]) { im.count = 0; im.frustumCulled = false; scene.add(im); }
   const CONF3 = ['#ff4d6d', '#ffd23f', '#3bceac', '#4d96ff', '#c77dff', '#ff8c42', '#fafafa', '#7ae582'];
   const FOIL3 = ['#ffd27a', '#e8e8f0', '#ff9ec4', '#9fd8ff'];
   const pieces = [];
-  const STRN = 16, NODES = 30;
+  const STRN = 2 * FXU.str3, NODES = 30;
   const strPos = new Float32Array(STRN * NODES * 2 * 3), strNor = new Float32Array(strPos.length), strCol = new Float32Array(strPos.length);
   const strIdx = [];
   for (let s = 0; s < STRN; s++) for (let i = 0; i < NODES - 1; i++) {
@@ -2346,11 +2491,11 @@ function create3D(THREE) {
   const cq = new THREE.Quaternion(), cn = new THREE.Vector3(), cm = new THREE.Matrix4(), cs = new THREE.Vector3(), ce = new THREE.Euler();
   function popConfetti() {
     clearConfetti();
-    const col = new THREE.Color();
+    const col = new THREE.Color(), F = fxc();
     for (const side of [-1, 1]) {
       const origin = new THREE.Vector3(side * 1.3, 0.1, 1.35);
-      for (let i = 0; i < 192; i++) {
-        const isFoil = i < 36;
+      for (let i = 0; i < F.conf3; i++) {
+        const isFoil = i < F.foil3;
         const dir = new THREE.Vector3(-side * rand(0.25, 0.7), rand(2.0, 2.8), rand(-1.1, -0.4)).normalize();
         const p = { p: origin.clone(), v: dir.multiplyScalar(rand(7.5, 11)), q: new THREE.Quaternion().setFromEuler(ce.set(rand(0, 6), rand(0, 6), rand(0, 6))),
           axis: new THREE.Vector3(rand(-1, 1), rand(-1, 1), rand(-1, 1)).normalize(), spin: rand(7, 16), w: rand(0.035, 0.052), h: rand(0.02, 0.03),
@@ -2360,7 +2505,7 @@ function create3D(THREE) {
         (isFoil ? foil : paper).setColorAt(p.idx, col.copy(p.col));
         pieces.push(p);
       }
-      for (let k = 0; k < STRN / 2; k++) {
+      for (let k = 0; k < F.str3; k++) {
         // long ribbons shot high over the cake; they leave the popper already unrolled along the launch line
         const v = new THREE.Vector3(-side * rand(0.7, 1.3), rand(2.4, 3.0), rand(-1.3, -0.5)).normalize().multiplyScalar(rand(8, 9.5));
         const s = { pos: new Float32Array(NODES * 3), old: new Float32Array(NODES * 3), seg: rand(0.05, 0.065), tw: rand(0, 6), v, fresh: true, age: 0, still: 0, settled: false,
@@ -2375,7 +2520,7 @@ function create3D(THREE) {
       }
     }
     paper.instanceColor.needsUpdate = true; foil.instanceColor.needsUpdate = true;
-    strMesh.visible = true; confDirty = true;
+    strMesh.visible = strands.length > 0; confDirty = true;
   }
   function clearConfetti() { pieces.length = 0; strands.length = 0; paper.count = foil.count = 0; strMesh.visible = false; }
   // pieces settle for good once they land; anything that flies out of view is dropped
@@ -2584,44 +2729,63 @@ function create3D(THREE) {
   // ---------- camera ----------
   let yawDrag = 0, pitchDrag = 0, t3 = 0;
   const target = new THREE.Vector3(0, 0.66, 0);
-  function placeCamera() {
+  function aim(dist, yaw, pitch) {
     const aspect = W / Math.max(1, H);
     camera.aspect = aspect;
-    const tanV = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
-    const fit = S.cake ? 1 : 0.8;                             // candles alone can be framed closer
-    const dist = Math.max(1.42 * fit / (tanV * aspect), 1.12 * fit / tanV);
-    target.y = S.cake ? 0.66 : 0.32;
-    const yaw = Math.sin(t3 * 0.11) * 0.06 + yawDrag, pitch = 0.4 + pitchDrag;
     camera.position.set(Math.sin(yaw) * Math.cos(pitch) * dist, target.y + Math.sin(pitch) * dist, Math.cos(yaw) * Math.cos(pitch) * dist);
     camera.lookAt(target);
     const shift = aspect < 1 ? H * 0.1 : H * 0.04;          // leave room at the top for the message
     camera.setViewOffset(W, H, 0, -shift, W, H);
     camera.updateProjectionMatrix();
   }
+  // Fitting the cake's width is enough on a phone held upright. Wide screens (computers, tablets turned sideways)
+  // are short, so the camera also backs off until the flames clear the top bar and the front of the cake clears
+  // the meter. Worked out once per layout and screen size, not per frame, so the slow sway doesn't zoom.
+  let fitKey = '', fitDist = 0;
+  const fitPts = [], tmpV = new THREE.Vector3();
+  function frameDistance() {
+    const key = W + 'x' + H + '|' + builtVer + '|' + S.cake;
+    if (key === fitKey) return fitDist;
+    const aspect = W / Math.max(1, H);
+    const tanV = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
+    const fit = S.cake ? 1 : 0.8;                             // candles alone can be framed closer
+    const d0 = Math.max(1.42 * fit / (tanV * aspect), 1.12 * fit / tanV);
+    fitPts.length = 0;
+    for (const b of C3) fitPts.push(new THREE.Vector3(b.tipW.x, b.tipW.y + b.fh * 1.05, b.tipW.z));
+    const front = new THREE.Vector3(0, S.cake ? Y0 : 0, S.cake ? R : 0.6);
+    const topY = 1 - 2 * 70 / H, botY = -1 + 2 * 96 / H;
+    const fits = d => {
+      aim(d, 0, 0.4);
+      camera.updateMatrixWorld();
+      for (const p of fitPts) if (tmpV.copy(p).project(camera).y > topY) return false;
+      return tmpV.copy(front).project(camera).y >= botY;
+    };
+    let lo = d0, hi = d0;
+    if (!fits(d0)) {
+      hi = d0 * 1.5; while (!fits(hi) && hi < d0 * 4) hi *= 1.5;
+      for (let i = 0; i < 16; i++) { const m = (lo + hi) / 2; if (fits(m)) hi = m; else lo = m; }
+    }
+    fitKey = key; fitDist = hi;
+    return hi;
+  }
+  function placeCamera() {
+    target.y = S.cake ? 0.66 : 0.32;
+    const dist = frameDistance();
+    aim(dist, Math.sin(t3 * 0.11) * 0.06 + yawDrag, 0.4 + pitchDrag);
+  }
 
-  // ---------- resolution: fixed by ?q= for tests, otherwise adapts to keep ~60 fps ----------
-  const DPR0 = window.devicePixelRatio || 1;
-  let forcedQ = null; try { const qq = new URLSearchParams(location.search).get('q'); if (qq != null) forcedQ = clamp(+qq, 0, 2); } catch (e) {}
-  let maxPr = forcedQ != null ? [Math.min(DPR0, 1.5), 1, 0.75][forcedQ] : Math.min(DPR0, 1.5);
-  let pr = maxPr, ftAvg = 16.7, slowT = 0, fastT = 0;
+  // ---------- resolution: chosen by applyResolution() ----------
+  let pr = pr3Now();
   function resize3() {
     renderer.setPixelRatio(pr); renderer.setSize(W, H, false);
     const s = H * pr / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)));
     smoke3.mat.uniforms.uScale.value = s; spark3.mat.uniforms.uScale.value = s; bokeh3.mat.uniforms.uScale.value = s;
-  }
-  function adaptResolution(dt) {
-    if (forcedQ != null) return;
-    ftAvg += (dt * 1000 - ftAvg) * 0.1;
-    if (ftAvg > 21) { slowT += dt; fastT = 0; } else if (ftAvg < 17.5) { fastT += dt; slowT = 0; } else { slowT = fastT = 0; }
-    if (slowT > 0.8 && pr > 0.6) { pr = Math.max(0.6, pr * 0.85); slowT = 0; resize3(); }
-    else if (fastT > 4 && pr < maxPr) { pr = Math.min(maxPr, pr * 1.1); fastT = 0; resize3(); }
   }
 
   // ---------- per frame ----------
   const tmp = new THREE.Vector3(), lightPos = new THREE.Vector3();
   function render3(dt) {
     t3 += dt;
-    adaptResolution(dt);
     if (builtVer !== layoutVer) buildCandles3D();
     cakeG.visible = !!S.cake;
     if (S.cake && S.cake !== flavour3) applyFlavour3(S.cake);
@@ -2681,7 +2845,8 @@ function create3D(THREE) {
     bounce.intensity = 0.45 + 0.5 * amb + 0.5 * w; bounce.color.lerpColors(BOUNCE_C[0], BOUNCE_C[1], w);
     rim.intensity = 0.35 - 0.15 * w; rim.color.lerpColors(RIM_C[0], RIM_C[1], w);
     scene.fog.color.lerpColors(FOG_C[0], FOG_C[1], w);
-    flushPoints(bokeh3, p => [p.s, p.base * (0.35 + 0.65 * amb) * (0.8 + 0.2 * Math.sin(t3 * 0.7 + p.ph)), p.col]);
+    if (!fxc().bokeh) bokeh3.geo.setDrawRange(0, 0);
+    else flushPoints(bokeh3, p => [p.s, p.base * (0.35 + 0.65 * amb) * (0.8 + 0.2 * Math.sin(t3 * 0.7 + p.ph)), p.col]);
     // particles
     for (let i = smoke3.list.length - 1; i >= 0; i--) {
       const p = smoke3.list[i]; p.life += dt;
@@ -2709,6 +2874,7 @@ function create3D(THREE) {
   return {
     render: render3,
     resize: resize3,
+    setPixelRatio(p) { if (Math.abs(p - pr) > 0.005) { pr = p; resize3(); } },
     show(on) { canvas3.hidden = !on; },
     pick(x, y) {
       placeCamera();

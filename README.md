@@ -22,9 +22,15 @@ The app itself is a single [`index.html`](index.html). Alongside it:
 - **Real-time 3D view (default):** switch views with the button at the top right, or pick 2D on the start screen before anything loads.
   - Rendered with three.js: a modelled cake and extruded number candles.
   - The light sits in the flames and flickers with them, candles cast shadows, the wax glows warm, and smoke rises after you blow.
-  - Built to stay light on phones: a single light at the flames plus soft fill light, no shadow maps or post-processing, and the resolution adjusts itself when frames slow down.
+  - Built to stay light on phones: a single light at the flames plus soft fill light, no shadow maps or post-processing.
+  - On wide screens such as computers and tablets turned sideways, the camera backs off so the whole cake and every flame stay in view.
   - Falls back to 2D if 3D isn't supported.
 - **2D view:** runs smoothly on any device.
+- **Effects levels:** pick Low, Medium, High (default) or Ultra in Settings.
+  - Lower levels draw fewer fireworks and less confetti at a lower resolution, for slower devices and big screens such as tablets. Low leaves out fireworks and almost all confetti.
+  - Ultra fires far more fireworks, confetti and streamers at a higher resolution, for powerful devices.
+  - When frames slow down, the resolution drops on its own (both the 3D view and the fireworks behind it) and a message suggests a lower level. Picking a level brings back its full resolution right away, without reloading.
+  - On a screen held at 30 fps, such as an iPhone or iPad in Low Power Mode, lowering the resolution doesn't help, so it goes back to full resolution and only the message shows.
 - **Celebration:** when every candle is out:
   - Happy Birthday plays and fireworks go off.
   - Party poppers fire confetti and paper streamers from both sides.
@@ -34,7 +40,8 @@ The app itself is a single [`index.html`](index.html). Alongside it:
   - Measures how much louder the sound is than the room, so a quiet bedroom and a noisy restaurant feel the same.
   - Talking and short knocks on the phone are filtered out.
   - Blowing is accumulated over time, so an uneven, gusty blow still works.
-- **Threshold:** defaults to 60. Drag the threshold line in Settings to make blowing easier or harder.
+- **Threshold:** defaults to 50. Drag the threshold line in Settings to make blowing easier or harder.
+- **Blow-out progress bar:** above the blow meter, a bar fills as the flames weaken and shows how many candles are out. It drops back if you stop blowing before they go out. On by default; turn it off in Settings. It isn't shown in tap mode.
 - **Auto calibration (if needed):** if blowing doesn't put the candles out, stay quiet for 2 seconds, then blow for 3, and the threshold is set for you.
 - **Sound:**
   - A breathy puff with a fading smoke hiss, and a match strike when relighting.
@@ -51,7 +58,8 @@ The app itself is a single [`index.html`](index.html). Alongside it:
   - `?cake=classic`, `?cake=chocolate`, `?cake=strawberry`: pick the cake
   - `?cake=0`: candles without the cake
   - `?r=2d` / `?r=3d`: open in 2D or 3D
-  - `?th=60`: set the blow threshold (5–95)
+  - `?th=50`: set the blow threshold (5–95)
+  - `?fx=low`, `?fx=medium`, `?fx=high`, `?fx=ultra`: pick the effects level
   - `?lang=en` / `?lang=zh`: show that language for this visit only
   - `?q=0` to `?q=2`: fix the 3D render quality instead of adjusting it automatically
   - `?debug`: show detector readings
@@ -105,6 +113,7 @@ If the site moves to another address, update the address in the `seo:start` bloc
 | v1.0.0 | 2026-10-07 | 2D view, regular and number candles, microphone blowing, adjustable threshold, synthesized sounds and birthday song |
 | v2.0.0 | 2026-10-07 | Softer, breath-like blow-out sound; rebuilt blow detection (room-noise baseline, speech filtering, accumulated blowing); auto calibration |
 | v3.0.0 | 2026-10-08 | Real-time 3D rendering (three.js), 3D by default, switchable to 2D |
+| v4.3.0 | 2026-10-12 | Effects levels (Low, Medium, High, Ultra) with a message when the resolution drops; blow-out progress bar; 3D camera fits wide screens; default threshold 50 |
 | v4.2.0 | 2026-10-09 | Default threshold 60; the install dialog shows one Chinese and one English screenshot |
 | v4.1.0 | 2026-10-09 | Installable as an app, and opens offline; English page at /en/; search and share metadata, sitemap; each page shows its own language |
 | v4.0.0 | 2026-10-08 | Lighter 3D for phones; fireworks, confetti and streamers; warm room light during the celebration; English interface; classic, chocolate and strawberry cream cakes, or no cake; raw microphone signal with the phone's call processing off; threshold 75 and number candles by default; calibration only when needed |
