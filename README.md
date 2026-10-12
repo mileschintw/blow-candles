@@ -62,7 +62,7 @@ The app itself is a single [`index.html`](index.html). Alongside it:
   - `?fx=low`, `?fx=medium`, `?fx=high`, `?fx=ultra`: pick the effects level
   - `?lang=en` / `?lang=zh`: show that language for this visit only
   - `?q=0` to `?q=2`: fix the 3D render quality instead of adjusting it automatically
-  - `?debug`: show detector readings
+  - `?debug`: show detector readings, the effects level, frame time and current resolution
 
 ## Using and hosting it
 

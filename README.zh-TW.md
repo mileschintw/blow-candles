@@ -60,7 +60,7 @@ app 本身是單一個 [`index.html`](index.html)。旁邊的檔案：
   - `?fx=low`、`?fx=medium`、`?fx=high`、`?fx=ultra`：指定特效強度
   - `?lang=en`／`?lang=zh`：這次開啟時使用指定的語言（不會記住）
   - `?q=0`～`?q=2`：固定 3D 畫質，不自動調整
-  - `?debug`：顯示偵測數值
+  - `?debug`：顯示偵測數值、特效強度、每格時間和目前解析度
 
 ## 使用與部署
 
