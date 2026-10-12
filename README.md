@@ -117,6 +117,7 @@ If the site moves to another address, update the address in the `seo:start` bloc
 | v4.1.0 | 2026-10-09 | Installable as an app, and opens offline; English page at /en/; search and share metadata, sitemap; each page shows its own language |
 | v4.2.0 | 2026-10-09 | Default threshold 60; the install dialog shows one Chinese and one English screenshot |
 | v5.0.0 | 2026-10-12 | Effects levels (Low, Medium, High, Ultra) with a message when the resolution drops, and picking a level restores full resolution without a reload; blow-out progress bar; 3D camera fits wide screens; default threshold 50; described as a virtual birthday cake for search and sharing |
+| v5.0.1 | 2026-10-12 | Faster first load: the 3D cake behind the start screen is drawn once instead of animating at 60 fps until Start, and three.js loads as the minified build |
 
 See the commit history for every individual change.
 

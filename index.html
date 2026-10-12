@@ -38,7 +38,8 @@
  "featureList":["對著麥克風吹氣吹熄蠟燭","數字蠟燭與單支蠟燭","3D 與 2D 生日蛋糕","生日快樂歌、煙火與彩花","遠距視訊慶生也能用","可安裝到主畫面、離線使用"]}
 </script>
 <!-- seo:end -->
-<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.min.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
@@ -1694,13 +1695,17 @@ function warnSlow(lowered) {
 
 /* ---------------- loop ---------------- */
 let last = performance.now();
+// before Start the 3D cake only shows dimly behind the start screen: draw a few frames when it appears or the size
+// changes, then hold still instead of running at 60 fps (saves battery, and keeps the page responsive while loading)
+let idleDraw = 3;
 function frame(now) {
+  if (!begun && use3D() && idleDraw <= 0) { last = now; requestAnimationFrame(frame); return; }
   // 3D: skip every other refresh on 120 Hz+ screens (~60 fps) to save GPU and battery
   if (use3D() && now - last < 10) { requestAnimationFrame(frame); return; }
   const dt = Math.min(0.05, Math.max(0, (now - last) / 1000)); last = now;
   update(dt);
-  if (use3D()) { R3.render(dt); renderOverlay(); } else render();
-  adaptResolution(dt);
+  if (use3D()) { R3.render(dt); renderOverlay(); if (!begun) idleDraw--; } else render();
+  if (begun) adaptResolution(dt);
   updateMeters();
   requestAnimationFrame(frame);
 }
@@ -1934,7 +1939,7 @@ function updateRenderBtn() {
   b.title = S.render === '2d' ? tr('is2D') : tr('is3D');
 }
 function applyRenderMode() {
-  backdropClean = false;
+  backdropClean = false; idleDraw = 3;
   if (R3) R3.show(!!use3D());
   updateRenderBtn();
   resetResolution();      // 2D and 3D cost very different amounts
@@ -1993,7 +1998,7 @@ document.addEventListener('visibilitychange', () => {
     last = performance.now(); res.grace = 1;
   }
 });
-window.addEventListener('resize', resize);
+window.addEventListener('resize', () => { idleDraw = 3; resize(); });
 window.addEventListener('orientationchange', () => setTimeout(resize, 200));
 
 // debug / test hook
