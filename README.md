@@ -113,10 +113,10 @@ If the site moves to another address, update the address in the `seo:start` bloc
 | v1.0.0 | 2026-10-07 | 2D view, regular and number candles, microphone blowing, adjustable threshold, synthesized sounds and birthday song |
 | v2.0.0 | 2026-10-07 | Softer, breath-like blow-out sound; rebuilt blow detection (room-noise baseline, speech filtering, accumulated blowing); auto calibration |
 | v3.0.0 | 2026-10-08 | Real-time 3D rendering (three.js), 3D by default, switchable to 2D |
-| v4.3.0 | 2026-10-12 | Effects levels (Low, Medium, High, Ultra) with a message when the resolution drops; blow-out progress bar; 3D camera fits wide screens; default threshold 50 |
-| v4.2.0 | 2026-10-09 | Default threshold 60; the install dialog shows one Chinese and one English screenshot |
-| v4.1.0 | 2026-10-09 | Installable as an app, and opens offline; English page at /en/; search and share metadata, sitemap; each page shows its own language |
 | v4.0.0 | 2026-10-08 | Lighter 3D for phones; fireworks, confetti and streamers; warm room light during the celebration; English interface; classic, chocolate and strawberry cream cakes, or no cake; raw microphone signal with the phone's call processing off; threshold 75 and number candles by default; calibration only when needed |
+| v4.1.0 | 2026-10-09 | Installable as an app, and opens offline; English page at /en/; search and share metadata, sitemap; each page shows its own language |
+| v4.2.0 | 2026-10-09 | Default threshold 60; the install dialog shows one Chinese and one English screenshot |
+| v5.0.0 | 2026-10-12 | Effects levels (Low, Medium, High, Ultra) with a message when the resolution drops, and picking a level restores full resolution without a reload; blow-out progress bar; 3D camera fits wide screens; default threshold 50; described as a virtual birthday cake for search and sharing |
 
 See the commit history for every individual change.
 
