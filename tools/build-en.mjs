@@ -18,8 +18,8 @@ const SRC = join(ROOT, 'index.html'), OUT = join(ROOT, 'en', 'index.html');
 const SITE = 'https://blow-candles.netlify.app/';
 
 const EN_HEAD = `<!-- seo:start (tools/build-en.mjs swaps this block for the English page) -->
-<title>Blow Candles – Blow Out Birthday Candles Online with Your Phone</title>
-<meta name="description" content="A free online birthday cake, no app to download: open the page and blow into your phone's microphone to blow out the birthday candles. Number candles, a 3D cake, Happy Birthday, fireworks and confetti. Installable to your home screen.">
+<title>Blow Candles – Virtual Birthday Cake, Blow Out the Candles with Your Phone</title>
+<meta name="description" content="A free virtual birthday cake that runs in your browser, no app to download: blow into your phone's microphone to blow out the birthday candles. Number candles, a 3D cake, Happy Birthday, fireworks and confetti, and it works for long-distance birthdays over a video call. Installable to your home screen.">
 <link rel="canonical" href="${SITE}en/">
 <link rel="alternate" hreflang="zh-Hant" href="${SITE}">
 <link rel="alternate" hreflang="en" href="${SITE}en/">
@@ -27,7 +27,7 @@ const EN_HEAD = `<!-- seo:start (tools/build-en.mjs swaps this block for the Eng
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Blow Candles">
 <meta property="og:title" content="Blow Candles – blow at your phone to put out the birthday candles">
-<meta property="og:description" content="A free birthday cake in your browser, no app to download. Number candles, a 3D cake, Happy Birthday and confetti.">
+<meta property="og:description" content="A free virtual birthday cake in your browser, no app to download. Number candles, a 3D cake, Happy Birthday and confetti.">
 <meta property="og:url" content="${SITE}en/">
 <meta property="og:image" content="${SITE}social/og-en.jpg">
 <meta property="og:image:width" content="1200">
@@ -39,13 +39,13 @@ const EN_HEAD = `<!-- seo:start (tools/build-en.mjs swaps this block for the Eng
 {"@context":"https://schema.org","@type":"WebApplication",
  "name":"Blow Candles","alternateName":["吹蠟燭","Blow the Candles"],
  "url":"${SITE}en/","inLanguage":"en",
- "description":"A free online birthday cake: blow into your phone's microphone to blow out the birthday candles.",
+ "description":"A free virtual birthday cake: blow into your phone's microphone to blow out the birthday candles.",
  "applicationCategory":"EntertainmentApplication","operatingSystem":"Android, iOS, Windows, macOS",
  "browserRequirements":"A modern browser with microphone access; without a microphone, tap the candles instead",
  "isAccessibleForFree":true,"offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},
  "image":"${SITE}social/og-en.jpg",
  "screenshot":["${SITE}screenshots/lit-en.jpg","${SITE}screenshots/party-en.jpg"],
- "featureList":["Blow into the microphone to put the candles out","Number candles and regular candles","3D and 2D birthday cakes","Happy Birthday, fireworks and confetti","Installable, works offline"]}
+ "featureList":["Blow into the microphone to put the candles out","Number candles and regular candles","3D and 2D birthday cakes","Happy Birthday, fireworks and confetti","Works for long-distance birthdays over a video call","Installable, works offline"]}
 </script>
 <!-- seo:end -->`;
 

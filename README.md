@@ -2,7 +2,7 @@
 
 **English** | [繁體中文](README.zh-TW.md)
 
-A free online birthday cake for your phone's browser: blow into the microphone and the birthday candles go out. There's no app to download, though it can be installed like one.
+A free online virtual birthday cake for your phone's browser: blow into the microphone and the birthday candles go out. There's no app to download, though it can be installed like one.
 
 **Live demo:** https://blow-candles.netlify.app/en/ (English) · https://blow-candles.netlify.app/ (繁體中文)
 

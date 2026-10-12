@@ -2,7 +2,7 @@
 
 [English](README.md) | **繁體中文**
 
-免費的線上生日蛋糕，在手機瀏覽器上就能玩：對著手機麥克風吹氣，就能把生日蠟燭吹熄。不用下載 App，也可以安裝到主畫面當 App 用。
+免費的線上虛擬生日蛋糕，在手機瀏覽器上就能玩：對著手機麥克風吹氣，就能把生日蠟燭吹熄。不用下載 App，也可以安裝到主畫面當 App 用。
 
 **線上試玩：** https://blow-candles.netlify.app/ （繁體中文）· https://blow-candles.netlify.app/en/ （English）
 

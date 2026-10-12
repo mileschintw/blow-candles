@@ -8,8 +8,8 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <!-- seo:start (tools/build-en.mjs swaps this block for the English page) -->
-<title>吹蠟燭｜線上生日蛋糕，對著手機吹氣吹熄蠟燭</title>
-<meta name="description" content="免費的線上生日蛋糕：不用下載 App，打開網頁對著手機麥克風吹氣，就能吹熄生日蠟燭。數字蠟燭、3D 蛋糕、生日快樂歌、煙火與彩花慶祝，也能安裝到主畫面。">
+<title>吹蠟燭｜虛擬生日蛋糕，對著手機吹氣吹熄蠟燭</title>
+<meta name="description" content="免費的線上虛擬生日蛋糕：不用下載 App，打開網頁對著手機麥克風吹氣，就能吹熄生日蠟燭。數字蠟燭、3D 蛋糕、生日快樂歌、煙火與彩花慶祝，遠距視訊慶生也能用，還能安裝到主畫面。">
 <link rel="canonical" href="https://blow-candles.netlify.app/">
 <link rel="alternate" hreflang="zh-Hant" href="https://blow-candles.netlify.app/">
 <link rel="alternate" hreflang="en" href="https://blow-candles.netlify.app/en/">
@@ -17,7 +17,7 @@
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="吹蠟燭 Blow Candles">
 <meta property="og:title" content="吹蠟燭｜對著手機吹氣，把生日蠟燭吹熄">
-<meta property="og:description" content="免費線上生日蛋糕，不用下載 App。數字蠟燭、3D 蛋糕、生日快樂歌與彩花慶祝。">
+<meta property="og:description" content="免費的線上虛擬生日蛋糕，不用下載 App。數字蠟燭、3D 蛋糕、生日快樂歌與彩花慶祝。">
 <meta property="og:url" content="https://blow-candles.netlify.app/">
 <meta property="og:image" content="https://blow-candles.netlify.app/social/og-zh.jpg">
 <meta property="og:image:width" content="1200">
@@ -29,13 +29,13 @@
 {"@context":"https://schema.org","@type":"WebApplication",
  "name":"吹蠟燭 Blow Candles","alternateName":["Blow Candles","吹蠟燭"],
  "url":"https://blow-candles.netlify.app/","inLanguage":"zh-Hant",
- "description":"免費的線上生日蛋糕：打開網頁對著手機麥克風吹氣，就能吹熄生日蠟燭。",
+ "description":"免費的線上虛擬生日蛋糕：打開網頁對著手機麥克風吹氣，就能吹熄生日蠟燭。",
  "applicationCategory":"EntertainmentApplication","operatingSystem":"Android, iOS, Windows, macOS",
  "browserRequirements":"需要支援麥克風的現代瀏覽器；沒有麥克風時可以點蠟燭吹熄",
  "isAccessibleForFree":true,"offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},
  "image":"https://blow-candles.netlify.app/social/og-zh.jpg",
  "screenshot":["https://blow-candles.netlify.app/screenshots/lit.jpg","https://blow-candles.netlify.app/screenshots/party.jpg"],
- "featureList":["對著麥克風吹氣吹熄蠟燭","數字蠟燭與單支蠟燭","3D 與 2D 生日蛋糕","生日快樂歌、煙火與彩花","可安裝到主畫面、離線使用"]}
+ "featureList":["對著麥克風吹氣吹熄蠟燭","數字蠟燭與單支蠟燭","3D 與 2D 生日蛋糕","生日快樂歌、煙火與彩花","遠距視訊慶生也能用","可安裝到主畫面、離線使用"]}
 </script>
 <!-- seo:end -->
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
@@ -362,7 +362,7 @@ const STR = {
     calibBtn: '🎯 自動校準（吹不熄時再用）', msgLabel: '吹熄後的祝福文字', sfx: '音效', song: '全部吹熄後播放生日快樂歌',
     lang: '語言／Language', done: '完成',
     intro: '允許使用麥克風後，<br>對著手機底部的麥克風吹氣，就能把蠟燭吹熄。', view: '畫面', v3d: '3D 立體', v2d: '2D 平面',
-    about: '免費的線上生日蛋糕，不用下載 App：對著手機麥克風吹氣，就能吹熄生日蠟燭。有數字蠟燭、3D 蛋糕、生日快樂歌和彩花慶祝。',
+    about: '免費的線上虛擬生日蛋糕，不用下載 App：對著手機麥克風吹氣，就能吹熄生日蠟燭。有數字蠟燭、3D 蛋糕、生日快樂歌和彩花慶祝。',
     start: '開始 🎂', noMic: '不使用麥克風（點蠟燭吹熄）', defMsg: '生日快樂！',
     hintTap: '點一下蠟燭就能吹熄 👆', hintBlow: '對著麥克風吹氣 🌬️', hintCal: '　吹不熄？到 ⚙️ 做自動校準',
     cancel: '取消', close: '關閉', retry: '再試一次', ok: '好',
@@ -399,7 +399,7 @@ const STR = {
     calibBtn: '🎯 Auto-calibrate (only if blowing fails)', msgLabel: 'Message once the candles are out', sfx: 'Sound effects', song: 'Play Happy Birthday when all are out',
     lang: 'Language／語言', done: 'Done',
     intro: 'Allow the microphone, then blow at the<br>bottom of your phone to put the candles out.', view: 'View', v3d: '3D', v2d: '2D (lighter)',
-    about: 'A free online birthday cake, no app needed: blow into your phone\'s mic to put out the candles. Number candles, a 3D cake, Happy Birthday and confetti.',
+    about: 'A free virtual birthday cake, no app needed: blow into your phone\'s mic to put out the candles. Number candles, a 3D cake, Happy Birthday and confetti.',
     start: 'Start 🎂', noMic: 'No microphone (tap the candles)', defMsg: 'Happy Birthday!',
     hintTap: 'Tap a candle to blow it out 👆', hintBlow: 'Blow at the microphone 🌬️', hintCal: '  Not working? Auto-calibrate in ⚙️',
     cancel: 'Cancel', close: 'Close', retry: 'Try again', ok: 'OK',
