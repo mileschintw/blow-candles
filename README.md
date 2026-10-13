@@ -119,6 +119,7 @@ If the site moves to another address, update the address in the `seo:start` bloc
 | v5.0.0 | 2026-10-12 | Effects levels (Low, Medium, High, Ultra) with a message when the resolution drops, and picking a level restores full resolution without a reload; blow-out progress bar; 3D camera fits wide screens; default threshold 50; described as a virtual birthday cake for search and sharing |
 | v5.0.1 | 2026-10-12 | Faster first load: the 3D cake behind the start screen is drawn once instead of animating at 60 fps until Start, and three.js loads as the minified build |
 | v5.1.0 | 2026-10-13 | The meter bar at the bottom is the threshold slider: drag the white line to adjust (it no longer opens Settings), and the bar shows the threshold number |
+| v5.2.0 | 2026-10-13 | Faster load: the 3D scene is built when you tap Start instead of behind the start screen, where the 2D cake now stands in (PageSpeed mobile score in local tests 75 → 98); on most phones the 3D cake appears about 0.3 s after Start |
 
 See the commit history for every individual change.
 

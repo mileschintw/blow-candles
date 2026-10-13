@@ -1703,16 +1703,17 @@ function warnSlow(lowered) {
 
 /* ---------------- loop ---------------- */
 let last = performance.now();
-// before Start the 3D cake only shows dimly behind the start screen: draw a few frames when it appears or the size
+// before Start the cake only shows dimly behind the start screen: draw a few frames when it appears or the size
 // changes, then hold still instead of running at 60 fps (saves battery, and keeps the page responsive while loading)
 let idleDraw = 3;
 function frame(now) {
-  if (!begun && use3D() && idleDraw <= 0) { last = now; requestAnimationFrame(frame); return; }
+  if (!begun && idleDraw <= 0) { last = now; requestAnimationFrame(frame); return; }
   // 3D: skip every other refresh on 120 Hz+ screens (~60 fps) to save GPU and battery
   if (use3D() && now - last < 10) { requestAnimationFrame(frame); return; }
   const dt = Math.min(0.05, Math.max(0, (now - last) / 1000)); last = now;
   update(dt);
-  if (use3D()) { R3.render(dt); renderOverlay(); if (!begun) idleDraw--; } else render();
+  if (use3D()) { R3.render(dt); renderOverlay(); } else render();
+  if (!begun) idleDraw--;
   if (begun) adaptResolution(dt);
   updateMeters();
   requestAnimationFrame(frame);
@@ -1975,7 +1976,7 @@ function showToast(msg) {
 function updateRenderBtn() {
   document.querySelectorAll('#startRender button').forEach(x => x.classList.toggle('on', x.dataset.r === S.render));
   const b = $('btnRender');
-  b.textContent = S.render === '2d' ? '2D' : r3State === 'loading' ? '3D…' : '3D';
+  b.textContent = S.render === '2d' ? '2D' : r3State === 'loading' && begun ? '3D…' : '3D';
   b.title = S.render === '2d' ? tr('is2D') : tr('is3D');
 }
 function applyRenderMode() {
@@ -2005,6 +2006,7 @@ async function keepAwake() {
 }
 function begin() {
   begun = true;
+  startGate.open();
   $('start').classList.add('hidden');
   setTimeout(() => { $('start').style.display = 'none'; }, 600);
   updateMicUI(); keepAwake();
@@ -2073,11 +2075,17 @@ window.candleDebug = {
    - if the browser drops the WebGL context it is restored instead of giving up */
 let R3 = null, r3State = 'idle';           // idle | loading | ready | lost | failed
 const use3D = () => S.render === '3d' && r3State === 'ready' && R3;
+// three.js downloads while the start screen is up, but the scene is only built at Start: compiling its shaders and
+// drawing the first frame keeps a slow phone busy for up to a second, which made the page slow to respond while
+// loading. Behind the start screen the 2D cake stands in; on most phones the 3D one replaces it within ~0.3 s,
+// while the start screen is still fading out.
+const startGate = (() => { let open; const p = new Promise(r => { open = r; }); p.open = open; return p; })();
 async function ensure3D() {
   if (r3State === 'ready' || r3State === 'loading' || r3State === 'lost') return;
   r3State = 'loading'; updateRenderBtn();
   try {
     const THREE = await import('three');
+    if (!begun) await startGate;
     R3 = create3D(THREE);
     r3State = 'ready';
   } catch (e) {
