@@ -96,6 +96,13 @@
     border-radius:999px;border:1px solid var(--line);background:var(--glass);
     -webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);font-size:18px;z-index:5}
   .meter-pill .lbl{font-size:13px;color:var(--muted);white-space:nowrap}
+  .meter-pill .lbl b{display:inline-block;min-width:2ch;color:var(--fg);font-variant-numeric:tabular-nums}
+  /* the pill is the threshold slider: drag anywhere on it to move the white line */
+  .meter-pill{touch-action:none;cursor:ew-resize;outline:none}
+  .meter-pill:focus-visible{box-shadow:0 0 0 2px rgba(255,195,107,.8)}
+  .meter-pill .mark{width:8px;margin-left:-4px;top:-8px;bottom:-8px;border-radius:4px;transition:transform .15s}
+  .meter-pill.drag .mark{transform:scaleX(1.4) scaleY(1.25)}
+  .meter-pill.drag{border-color:rgba(255,195,107,.7)}
   .meter{position:relative;flex:1;height:10px;border-radius:99px;background:rgba(255,255,255,.13)}
   .meter .fill{position:absolute;left:0;top:0;bottom:0;width:0;border-radius:99px;
     background:linear-gradient(90deg,#4fd6a0,#ffd166)}
@@ -220,11 +227,12 @@
 </header>
 <div id="hint" class="hint">對著麥克風吹氣 🌬️</div>
 
-<button id="meterPill" class="meter-pill" data-t-aria="meterAria" aria-label="吹氣強度，點一下調整靈敏度">
+<div id="meterPill" class="meter-pill" role="slider" tabindex="0" aria-valuemin="5" aria-valuemax="95" aria-valuenow="50"
+  data-t-aria="meterAria" aria-label="吹熄門檻，左右拖動調整">
   <span id="micIc">🎤</span>
-  <span class="meter"><span class="fill" id="pillFill"></span><span class="mark" id="pillMark"></span></span>
-  <span class="lbl" data-t="sens">靈敏度</span>
-</button>
+  <span class="meter" id="pillMeter"><span class="fill" id="pillFill"></span><span class="mark" id="pillMark"></span></span>
+  <span class="lbl"><span data-t="thShort">門檻</span> <b id="pillTh">50</b></span>
+</div>
 
 <div id="progress" class="progress off" aria-hidden="true">
   <span class="track"><span class="bar" id="progBar"></span></span><span class="cnt" id="progCnt"></span>
@@ -355,7 +363,7 @@ const rand = (a, b) => a + Math.random() * (b - a);
 const STR = {
   zh: {
     appName: '吹蠟燭', docTitle: '吹蠟燭｜線上生日蛋糕，對著手機吹氣吹熄蠟燭', relight: '🔥 重新點燃', relightAria: '全部重新點燃', renderAria: '切換 2D／3D 畫面', settings: '設定',
-    meterAria: '吹氣強度，點一下調整靈敏度', sens: '靈敏度', wish: '許個願吧 ✨', again: '再點一次 🔥',
+    meterAria: '吹熄門檻，左右拖動調整', thShort: '門檻', wish: '許個願吧 ✨', again: '再點一次 🔥',
     candleStyle: '蠟燭樣式', single: '單支蠟燭', number: '數字蠟燭', count: '蠟燭數量（1–40）', fewer: '減少', more: '增加',
     numLabel: '要顯示的數字（最多 4 位）', numPh: '例如 25', cake: '蛋糕', cakeOff: '不要', cakeClassic: '經典', cakeChoc: '巧克力', cakeStraw: '草莓鮮奶油', threshold: '吹熄門檻',
     moreSens: '← 更敏感', harder: '需要更用力 →',
@@ -392,7 +400,7 @@ const STR = {
   },
   en: {
     appName: 'Blow the Candles', docTitle: 'Blow Candles – Blow Out Birthday Candles Online with Your Phone', relight: '🔥 Relight', relightAria: 'Relight all candles', renderAria: 'Switch between 2D and 3D', settings: 'Settings',
-    meterAria: 'Blow strength. Tap to adjust sensitivity', sens: 'Sensitivity', wish: 'Make a wish ✨', again: 'Light them again 🔥',
+    meterAria: 'Blow threshold. Drag left or right to adjust', thShort: 'Threshold', wish: 'Make a wish ✨', again: 'Light them again 🔥',
     candleStyle: 'Candle style', single: 'Candles', number: 'Number candles', count: 'Number of candles (1–40)', fewer: 'Fewer', more: 'More',
     numLabel: 'Number to show (up to 4 digits)', numPh: 'e.g. 25', cake: 'Cake', cakeOff: 'None', cakeClassic: 'Classic', cakeChoc: 'Chocolate', cakeStraw: 'Strawberry', threshold: 'Blow threshold',
     moreSens: '← More sensitive', harder: 'Needs a harder blow →',
@@ -1749,6 +1757,7 @@ try {
 function updateMarks() {
   pillMark.style.left = S.threshold + '%'; bigMark.style.left = S.threshold + '%';
   $('thVal').textContent = S.threshold; $('thSlider').value = S.threshold;
+  $('pillTh').textContent = S.threshold; $('meterPill').setAttribute('aria-valuenow', S.threshold);
 }
 function updateMicUI() {
   $('micIc').textContent = micOk ? '🎤' : '👆';
@@ -1787,7 +1796,38 @@ function rebuildSoon(delay) {
 }
 
 $('btnSettings').addEventListener('click', openSheet);
-$('meterPill').addEventListener('click', openSheet);
+// The meter pill is the threshold slider itself: press anywhere on it and drag, the white line follows the finger.
+// It used to open the settings sheet on a tap, which people tried to drag and then had to close again.
+function setThreshold(v) { S.threshold = clamp(Math.round(v), 5, 95); updateMarks(); }
+const pill = $('meterPill');
+let pillDrag = null;
+// On the bar itself the line jumps to the finger; pressed on the mic icon or the number, the line only moves
+// by as much as the finger does, so a stray tap there changes nothing.
+function pillAt(x) {
+  const r = $('pillMeter').getBoundingClientRect(), w = Math.max(1, r.width);
+  setThreshold(pillDrag.rel ? pillDrag.th + (x - pillDrag.x) / w * 100 : (x - r.left) / w * 100);
+}
+pill.addEventListener('pointerdown', e => {
+  if (e.button > 0) return;
+  ensureAudio();
+  const r = $('pillMeter').getBoundingClientRect();
+  pillDrag = { id: e.pointerId, x: e.clientX, th: S.threshold, rel: e.clientX < r.left - 8 || e.clientX > r.right + 8 };
+  pill.classList.add('drag');
+  try { pill.setPointerCapture(e.pointerId); } catch (err) {}
+  pillAt(e.clientX);
+});
+pill.addEventListener('pointermove', e => { if (pillDrag && pillDrag.id === e.pointerId) pillAt(e.clientX); });
+function pillEnd(e) {
+  if (!pillDrag || pillDrag.id !== e.pointerId) return;
+  pillDrag = null; pill.classList.remove('drag'); save();
+}
+pill.addEventListener('pointerup', pillEnd);
+pill.addEventListener('pointercancel', pillEnd);
+pill.addEventListener('keydown', e => {
+  const step = { ArrowLeft: -1, ArrowDown: -1, ArrowRight: 1, ArrowUp: 1, PageDown: -10, PageUp: 10 }[e.key];
+  if (!step) return;
+  e.preventDefault(); setThreshold(S.threshold + step); save();
+});
 $('btnDone').addEventListener('click', closeSheet);
 $('sheetBackdrop').addEventListener('click', closeSheet);
 $('btnRelight').addEventListener('click', () => { ensureAudio(); relightAll(true, false); });

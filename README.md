@@ -40,7 +40,7 @@ The app itself is a single [`index.html`](index.html). Alongside it:
   - Measures how much louder the sound is than the room, so a quiet bedroom and a noisy restaurant feel the same.
   - Talking and short knocks on the phone are filtered out.
   - Blowing is accumulated over time, so an uneven, gusty blow still works.
-- **Threshold:** defaults to 50. Drag the threshold line in Settings to make blowing easier or harder.
+- **Threshold:** defaults to 50. Drag the white line on the bar at the bottom of the screen (or in Settings) to make blowing easier or harder.
 - **Blow-out progress bar:** above the blow meter, a bar fills as the flames weaken and shows how many candles are out. It drops back if you stop blowing before they go out. On by default; turn it off in Settings. It isn't shown in tap mode.
 - **Auto calibration (if needed):** if blowing doesn't put the candles out, stay quiet for 2 seconds, then blow for 3, and the threshold is set for you.
 - **Sound:**
@@ -118,6 +118,7 @@ If the site moves to another address, update the address in the `seo:start` bloc
 | v4.2.0 | 2026-10-09 | Default threshold 60; the install dialog shows one Chinese and one English screenshot |
 | v5.0.0 | 2026-10-12 | Effects levels (Low, Medium, High, Ultra) with a message when the resolution drops, and picking a level restores full resolution without a reload; blow-out progress bar; 3D camera fits wide screens; default threshold 50; described as a virtual birthday cake for search and sharing |
 | v5.0.1 | 2026-10-12 | Faster first load: the 3D cake behind the start screen is drawn once instead of animating at 60 fps until Start, and three.js loads as the minified build |
+| v5.1.0 | 2026-10-13 | The meter bar at the bottom is the threshold slider: drag the white line to adjust (it no longer opens Settings), and the bar shows the threshold number |
 
 See the commit history for every individual change.
 
